@@ -1,18 +1,16 @@
 {
   "name": "sofi-server",
   "version": "1.0.0",
-  "description": "Servidor SOFI CEO - HaaPpDigitalV",
+  "description": "Servidor SOFI CEO",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "install": "npm install"
   },
   "dependencies": {
     "express": "^4.18.2",
     "axios": "^1.6.0",
     "cors": "^2.8.5"
   },
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "packageManager": "npm@9.6.7" // ESTA LÍNEA ES LA QUE SOLUCIONA TODO
+  "packageManager": "npm@9.6.7"
 }
