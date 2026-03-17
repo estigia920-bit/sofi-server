@@ -1,23 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SOFI</title>
+<style>
+/* ESTILOS SIMPLES PARA CELULAR */
+*{margin:0;padding:0;box-sizing:border-box;font-family:sans-serif}
+body{background:#F0ECF9}
+.header{background:linear-gradient(135deg,#6200EA,#4A00CC);color:#fff;padding:20px;text-align:center}
+.nav{display:flex;background:#fff;padding:10px;gap:5px;overflow-x:auto}
+.btn{flex:1;padding:10px;border:none;border-radius:5px;background:#6200EA;color:#fff;font-size:12px}
+.tab{display:none;margin:15px;padding:15px;background:#fff;border-radius:10px;box-shadow:0 2px 5px rgba(0,0,0,0.1)}
+.active{display:block}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>SOFI</h1>
+  <p>Servidor CEO Activo</p>
+</div>
 
-{
-  "name": "sofi-server",
-  "version": "1.0.0",
-  "description": "Servidor SOFI CEO - HaaPpDigitalV",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js" // ANEXO: Script para desarrollo (más fácil desde móvil)
-  },
-  "dependencies": {
-    "express": "^4.18.2",
-    "axios": "^1.6.0",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.5", // ANEXO: Para manejar variables de entorno (sin complicaciones)
-    "express-rate-limit": "^7.2.0" // ANEXO: Protege el servidor de peticiones excesivas
-  },
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "author": "Nirvana", // ANEXO: Información del propietario
-  "license": "MIT" // ANEXO: Licencia básica (para evitar advertencias)
+<div class="nav">
+  <button class="btn" onclick="cambiarTab('ventas')">📊 Ventas</button>
+  <button class="btn" onclick="cambiarTab('productos')">📦 Productos</button>
+  <button class="btn" onclick="cambiarTab('perceptiva')">🧠 Perceptiva</button>
+  <button class="btn" onclick="cambiarTab('sismico')">🌍 Sísmico</button>
+  <button class="btn" onclick="cambiarTab('voz')">🎙️ Voz</button>
+</div>
+
+<!-- TAB 1: VENTAS -->
+<div id="ventas" class="tab active">
+  <h2>Ventas Hotmart</h2>
+  <p>Total: <span id="totalVentas">0</span></p>
+</div>
+
+<!-- TAB 2: PRODUCTOS -->
+<div id="productos" class="tab">
+  <h2>Productos Activos</h2>
+  <p>Total: <span id="totalProductos">0</span></p>
+</div>
+
+<!-- TAB 3: PERCEPTIVA -->
+<div id="perceptiva" class="tab">
+  <h2>Integra Perceptiva</h2>
+  <p>Modos disponibles: <span id="modos"></span></p>
+</div>
+
+<!-- TAB 4: SÍSMICO -->
+<div id="sismico" class="tab">
+  <h2>Monitor Sísmico</h2>
+  <p>Magnitud: <span id="magnitud"></span></p>
+  <p>Ubicación: Chiapas Palenque</p>
+</div>
+
+<!-- TAB 5: VOZ -->
+<div id="voz" class="tab">
+  <h2>Frases de SOFI</h2>
+  <p id="frasesVoz"></p>
+</div>
+
+<script>
+// FUNCION SOLO PARA CAMBIAR TABS - NO CAMBIES NADA
+function cambiarTab(id){
+  document.querySelectorAll('.tab').forEach(t=>t.style.display='none');
+  document.getElementById(id).style.display='block';
 }
+
+// CARGAR DATOS CUANDO ABRES LA APP
+window.onload = async () => {
+  // CARGAR VENTAS
+  const ventas = await fetch('/ventas').then(r=>r.json());
+  document.getElementById('totalVentas').textContent = ventas.total;
+
+  // CARGAR PRODUCTOS
+  const productos = await fetch('/productos').then(r=>r.json());
+  document.getElementById('totalProductos').textContent = productos.total;
+
+  // CARGAR PERCEPTIVA
+  const perceptiva = await fetch('/perceptiva').then(r=>r.json());
+  document.getElementById('modos').textContent = perceptiva.modos.join(', ');
+
+  // CARGAR SÍSMICO
+  const sismico = await fetch('/sismico').then(r=>r.json());
+  document.getElementById('magnitud').textContent = sismico.magnitud;
+
+  // CARGAR VOZ
+  const voz = await fetch('/voz').then(r=>r.json());
+  document.getElementById('frasesVoz').textContent = voz.frases.join(' · ');
+}
+</script>
+</body>
+</html>
