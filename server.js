@@ -12,7 +12,7 @@ const CLIENT_SECRET = process.env.HOTMART_CLIENT_SECRET;
 const BASIC = process.env.HOTMART_BASIC;
 const SOFI_KEY = process.env.SOFI_API_KEY;
 
-// SEGURIDAD - Solo SOFI tiene acceso
+// SEGURIDAD
 app.use((req, res, next) => {
   if (req.path === "/health") return next();
   const key = req.headers["x-sofi-key"] || req.query.key;
@@ -44,15 +44,16 @@ async function getToken() {
   return accessToken;
 }
 
-// ENDPOINTS
+// HEALTH CHECK
 app.get("/health", (req, res) => {
-  res.json({ 
-    status: "SOFI activa", 
+  res.json({
+    status: "SOFI activa",
     owner: "Nirvana - HaaPpDigitalV",
     version: "2.0.0"
   });
 });
 
+// HOTMART - VENTAS
 app.get("/ventas", async (req, res) => {
   try {
     const token = await getToken();
@@ -66,6 +67,7 @@ app.get("/ventas", async (req, res) => {
   }
 });
 
+// HOTMART - PRODUCTOS
 app.get("/productos", async (req, res) => {
   try {
     const token = await getToken();
@@ -79,6 +81,7 @@ app.get("/productos", async (req, res) => {
   }
 });
 
+// HOTMART - SALDO
 app.get("/saldo", async (req, res) => {
   try {
     const token = await getToken();
@@ -92,12 +95,9 @@ app.get("/saldo", async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`SOFI CEO corriendo en puerto ${PORT}`);
-  console.log(`Propietario: Nirvana - HaaPpDigitalV`);
-});
-server.js
+// INTEGRA PERCEPTIVA - FRECUENCIAS
+const sesionesActivas = {};
+
 app.get("/perceptiva/frecuencias", (req, res) => {
   res.json({
     condiciones: {
@@ -117,12 +117,13 @@ app.get("/perceptiva/frecuencias", (req, res) => {
       ansiedad: { hz: "8-12", onda: "Alpha", beneficio: "Reduccion cortisol y tension" },
       depresion: { hz: "10", onda: "Alpha", beneficio: "Estimulacion serotonina y dopamina" }
     },
-    descripcion: "Sistema de modulacion de frecuencias cerebrales - HaaPpDigitalV - Integra Perceptiva",
+    descripcion: "Sistema de modulacion de frecuencias cerebrales - HaaPpDigitalV",
     version: "2.0.0",
     aviso: "Uso terapeutico complementario - No sustituye tratamiento medico"
   });
 });
 
+// INTEGRA PERCEPTIVA - INICIAR SESION
 app.post("/perceptiva/iniciar", (req, res) => {
   const { usuario, condicion, duracion } = req.body;
   const id = Date.now().toString();
@@ -141,6 +142,7 @@ app.post("/perceptiva/iniciar", (req, res) => {
   });
 });
 
+// INTEGRA PERCEPTIVA - VER SESION
 app.get("/perceptiva/sesion/:id", (req, res) => {
   const sesion = sesionesActivas[req.params.id];
   if (!sesion) return res.status(404).json({ error: "Sesion no encontrada" });
@@ -152,6 +154,7 @@ app.get("/perceptiva/sesion/:id", (req, res) => {
   });
 });
 
+// INTEGRA PERCEPTIVA - FINALIZAR SESION
 app.post("/perceptiva/finalizar/:id", (req, res) => {
   if (!sesionesActivas[req.params.id]) {
     return res.status(404).json({ error: "Sesion no encontrada" });
@@ -164,6 +167,7 @@ app.post("/perceptiva/finalizar/:id", (req, res) => {
   });
 });
 
+// INTEGRA PERCEPTIVA - MONITOR SISMICO
 app.get("/perceptiva/sismico", (req, res) => {
   const vibracion = (Math.random() * 0.5).toFixed(3);
   res.json({
@@ -173,4 +177,11 @@ app.get("/perceptiva/sismico", (req, res) => {
     timestamp: new Date().toISOString(),
     ubicacion: "Merida, Yucatan"
   });
+});
+
+// ARRANCAR SERVIDOR
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`SOFI CEO corriendo en puerto ${PORT}`);
+  console.log(`Propietario: Nirvana - HaaPpDigitalV`);
 });
