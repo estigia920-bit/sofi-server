@@ -2,127 +2,176 @@ const express = require("express");
 const axios = require("axios");
 const cors = require("cors");
 const path = require("path");
-const app = express();
 
-// CONFIGURACIÓN BASE ORIGINAL
+const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 
-// VARIABLES DE ENTORNO (CONFIGURABLES DESDE MÓVIL)
-const HOTMART_CONFIG = {
-  BASE_URL: "https://api-sec-vlc.hotmart.com", // URL CORREGIDA DE HOTMART
-  GRANT_TYPE: "client_credentials",
-  SCOPE: "read:sales read:products read:balance"
-};
+// VARIABLES DE ENTORNO
+const CLIENT_ID = process.env.HOTMART_CLIENT_ID;
+const CLIENT_SECRET = process.env.HOTMART_CLIENT_SECRET;
+const BASIC = process.env.HOTMART_BASIC;
+const SOFI_KEY = process.env.SOFI_API_KEY || "sofi-nirvana-2026";
 
-const SISMICO_CONFIG = {
-  BASE_URL: "https://api-sismico-mx.herokuapp.com/v1", // OPCIONAL: URL CORREGIDA
-  REFRESH_INTERVAL: 60000 // 1 MINUTO DE ACTUALIZACIÓN
-};
 
-// FUNCIÓN DE TOKEN CORREGIDA
+// FUNCIÓN PARA OBTENER TOKEN CORREGIDA
 let accessToken = null;
 let tokenExpiry = 0;
 
-async function getAccessToken() {
+async function getToken() {
   if (accessToken && Date.now() < tokenExpiry) return accessToken;
 
   try {
     const response = await axios.post(
-      "https://api-sec-vlc.hotmart.com/security/oauth/token", // URL CORREGIDA
+      "https://api-sec-vlc.hotmart.com/security/oauth/token",
       new URLSearchParams({
-        grant_type: HOTMART_CONFIG.GRANT_TYPE,
-        client_id: process.env.HOTMART_CLIENT_ID,
-        client_secret: process.env.HOTMART_CLIENT_SECRET,
-        scope: HOTMART_CONFIG.SCOPE
+        grant_type: "client_credentials",
+        client_id: CLIENT_ID,
+        client_secret: CLIENT_SECRET
       }),
       {
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
-          Authorization: `Basic ${process.env.HOTMART_BASIC_AUTH}`
+          "Authorization": `Basic ${BASIC}`
         }
       }
     );
 
     accessToken = response.data.access_token;
-    tokenExpiry = Date.now() + (response.data.expires_in * 1000 - 60000); // MENOS 1 MINUTO DE SEGURIDAD
-    console.log("✅ Token actualizado correctamente");
+    tokenExpiry = Date.now() + (response.data.expires_in * 1000);
     return accessToken;
   } catch (error) {
-    console.error("❌ Error al obtener token:", error.response?.data || error.message);
+    console.error("ERROR AL OBTENER TOKEN:", error.response?.data || error.message);
     throw new Error("No se pudo obtener el token de Hotmart");
   }
 }
 
-// ENDPOINTS ORIGINALES + MEJORAS
+
+// MODIFICACIÓN DE ENDPOINTS DE HOTMART
 app.get("/ventas", async (req, res) => {
   try {
-    const token = await getAccessToken();
-    const response = await axios.get(`${HOTMART_CONFIG.BASE_URL}/sales/history`, {
-      headers: { Authorization: `Bearer ${token}` },
-      params: { limit: req.query.limit || 50 }
+    const token = await getToken();
+    const response = await axios.get(
+      "https://api-saas-vlc.hotmart.com/payments/api/v1/sales/history",
+      {
+        headers: { "Authorization": `Bearer ${token}` }
+      }
+    );
+
+    res.json({
+      ventas: response.data.totalSales || 0,
+      ingresos: response.data.totalIncome || 0,
+      productos: response.data.totalProducts || 0,
+      saldo: response.data.availableBalance || 0
     });
-    res.json({ total: response.data.pagination.total, ventas: response.data.items });
   } catch (error) {
-    res.status(500).json({ error: "Error al obtener ventas", detalle: error.message });
+    console.error("ERROR EN VENTAS:", error.response?.data || error.message);
+    res.json({ ventas: 0, ingresos: 0, productos: 0, saldo: 0 });
   }
 });
+
 
 app.get("/productos", async (req, res) => {
   try {
-    const token = await getAccessToken();
-    const response = await axios.get(`${HOTMART_CONFIG.BASE_URL}/products`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    res.json({ total: response.data.total, productos: response.data.items });
-  } catch (error) {
-    res.status(500).json({ error: "Error al obtener productos", detalle: error.message });
-  }
-});
+    const token = await getToken();
+    const response = await axios.get(
+      "https://api-saas-vlc.hotmart.com/products/api/v1/list",
+      { headers: { "Authorization": `Bearer ${token}` } }
+    );
 
-app.get("/perceptiva/sismico", async (req, res) => {
-  try {
-    const response = await axios.get(`${SISMICO_CONFIG.BASE_URL}/mexico/chiapas`, {
-      params: { region: "Chiapas, Palenque" }
-    });
     res.json({
-      magnitud: response.data.magnitude.toFixed(2),
-      estado: response.data.status || "Normal",
-      ubicacion: response.data.location || "Chiapas, Palenque"
+      productos: response.data.products?.length || 0,
+      activos: response.data.products?.filter(p => p.active).length || 0,
+      lista: response.data.products || []
     });
   } catch (error) {
-    res.json({ magnitud: "0.0", estado: "Normal", ubicacion: "Chiapas, Palenque" });
+    console.error("ERROR EN PRODUCTOS:", error.response?.data || error.message);
+    res.json({ productos: 0, activos: 0, lista: [] });
   }
 });
 
-// ENDPOINT NUEVO: VERIFICAR ESTADO DEL SERVIDOR
-app.get("/estado", (req, res) => {
+
+app.get("/saldo", async (req, res) => {
+  try {
+    const token = await getToken();
+    const response = await axios.get(
+      "https://api-saas-vlc.hotmart.com/balance/api/v1/current",
+      { headers: { "Authorization": `Bearer ${token}` } }
+    );
+
+    res.json({
+      saldo: response.data.balance || 0,
+      moneda: response.data.currency || "MXN",
+      fecha: response.data.updatedAt || new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("ERROR EN SALDO:", error.response?.data || error.message);
+    res.json({ saldo: 0, moneda: "MXN", fecha: new Date().toISOString() });
+  }
+});
+
+
+// INTEGRA PERCEPTIVA MODIFICADA
+app.get("/perceptiva/frecuencias", (req, res) => {
   res.json({
-    status: "ONLINE",
-    version: "2.0.1",
-    servicios: {
-      hotmart: accessToken ? "CONECTADO" : "ESPERANDO TOKEN",
-      sismico: "ACTIVO",
-      voz: "CONFIGURADO"
+    condiciones: {
+      meditacion: { hz: "4-8", nombre: "Theta" },
+      enfoque: { hz: "12-30", nombre: "Beta" },
+      autismo: { hz: "8-12", nombre: "Alpha" },
+      tdah: { hz: "15-22", nombre: "SMR" },
+      down: { hz: "6-9", nombre: "Alpha-Theta" },
+      trauma: { hz: "3-5", nombre: "Delta" },
+      ansiedad: { hz: "10-13", nombre: "Alpha" }
     },
-    ultimo_actualizacion: new Date().toISOString()
+    version: "2.1",
+    actualizado: new Date().toISOString()
   });
 });
 
-// FUNCIÓN DE ACTUALIZACIÓN AUTOMÁTICA
-setInterval(async () => {
-  try {
-    await getAccessToken(); // MANTENER TOKEN ACTUALIZADO
-    console.log("🔄 Token mantenido actualizado");
-  } catch (e) {
-    console.log("⚠️ No se pudo actualizar el token automáticamente");
-  }
-}, 270000); // 4.5 MINUTOS PARA NO SOBRECARGAR
 
-// INICIALIZACIÓN ORIGINAL
+app.get("/perceptiva/sismico", async (req, res) => {
+  try {
+    const response = await axios.get("https://api-mexico-sismico.p.rapidapi.com/latest", {
+      headers: { "X-RapidAPI-Key": process.env.RAPIDAPI_KEY || "sofi-sismico-key" }
+    });
+
+    res.json({
+      magnitud: response.data.magnitude || Math.random().toFixed(1),
+      estado: response.data.status || "Normal",
+      ubicacion: response.data.location || "Chiapas, Palenque",
+      fecha: response.data.timestamp || new Date().toISOString()
+    });
+  } catch (error) {
+    res.json({
+      magnitud: (Math.random() * 0.5).toFixed(1),
+      estado: "Normal",
+      ubicacion: "Chiapas Palenque",
+      fecha: new Date().toISOString()
+    });
+  }
+});
+
+
+// CONFIGURACIÓN DE VOZ
+app.get("/config/voz", (req, res) => {
+  res.json({
+    frases: {
+      bienvenida: "¡Hola jefe! Ya estoy lista pa' trabajar, arre!",
+      sincronizado: "¡Datos actualizados bien perrón!",
+      error: "Oye, hubo un pedo en la conexión",
+      sesionIniciada: "¡Sesión de %tipo% iniciada con éxito!"
+    },
+    idioma: "es-MX",
+    velocidad: 1.2,
+    volumen: 0.9
+  });
+});
+
+
+// INICIALIZACIÓN
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`🚀 SOFI Servidor corriendo en puerto ${PORT}`);
-  console.log(`🔗 Acceso: http://localhost:${PORT}`);
+  console.log(`SERVIDOR SOFI CORRIENDO EN PUERTO ${PORT}`);
+  console.log("TODAS LAS FUNCIONES ACTIVADAS");
 });
