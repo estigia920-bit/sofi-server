@@ -16,24 +16,27 @@ const crypto  = require('crypto');
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
-// ── Middleware ────────────────────────────────────────────────
+// ── Middleware base ───────────────────────────────────────────
 app.use(cors());
 app.use(express.json());
-app.use(express.static(__dirname));
 
 // ── API Key Security ──────────────────────────────────────────
 const SOFI_API_KEY = process.env.SOFI_API_KEY || 'sofi-dev-2026';
 
+// ── Rutas públicas (sin auth) ────────────────────────────────
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+app.get('/health', (req, res) => {
+  const totalInter = Object.values(MEMORIA.interacciones).reduce((s,v)=>s+v.length,0);
+  res.json({ status:'online', nombre:CONFIG.nombre_ia, version:'1.0.0', timestamp:new Date().toISOString(), conocimiento:Object.keys(CONOCIMIENTO).length, notas:NOTAS.length, interacciones:totalInter });
+});
+
 function requireKey(req, res, next) {
-  const open = ['/', '/health'];
-  if (open.includes(req.path)) return next();
   const key = req.headers['x-sofi-key'] || req.query.key;
   if (!key || key !== SOFI_API_KEY) {
     return res.status(401).json({ error: 'Acceso denegado. Header: x-sofi-key' });
   }
   next();
 }
-app.use(requireKey);
 
 // ══════════════════════════════════════════════════════════════
 // PERSISTENCIA JSON (equivale a los .json de mi_ia_personal.py)
@@ -311,10 +314,7 @@ app.delete('/memoria', (req, res) => {
   res.json({ ok: true, msg: 'Memoria borrada' });
 });
 
-// — Servir UI
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
+// root route moved above
 
 // ══════════════════════════════════════════════════════════════
 // INICIO
