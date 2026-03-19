@@ -1,16 +1,20 @@
 {
-  "name": "sofi-server",
+  "name": "sofi-asistente",
   "version": "1.0.0",
-  "description": "Servidor SOFI CEO",
+  "description": "SOFI — Motor Cognitivo Personal · Happs Digital",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "install": "npm install"
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "axios": "^1.6.0",
-    "cors": "^2.8.5"
+    "cors": "^2.8.5",
+    "express": "^4.18.2"
   },
-  "packageManager": "npm@9.6.7"
+  "author": "Víctor Hugo González Torres — Happs Digital",
+  "license": "UNLICENSED"
 }
+1
