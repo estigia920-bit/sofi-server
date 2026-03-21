@@ -30,6 +30,8 @@
         #datos-usuario p { margin: 10px 0; }
         #actualizaciones { margin-top: 30px; }
         .actualizacion { color: #2ECC71; margin: 5px 0; }
+        .acceso-permitido { color: #2ECC71; font-weight: bold; }
+        .acceso-denegado { color: #FF5733; font-weight: bold; }
 
         /* Área de proyección 3D */
         #proyeccion-3d {
@@ -50,7 +52,7 @@
         <!-- Panel de datos del usuario -->
         <div id="panel-usuario">
             <h2>🧠 DATOS DE USUARIO</h2>
-            <div id="datos-usuario">
+            <div id="datos-usuario" style="display: none;">
                 <p><strong>ID:</strong> <span id="id-usuario"></span></p>
                 <p><strong>Frecuencia base:</strong> 12.3 Hz</p>
                 <p><strong>Dispositivo:</strong> <span id="dispositivo-usuario"></span></p>
@@ -58,7 +60,8 @@
 
             <!-- Actualizaciones en tiempo real -->
             <div id="actualizaciones">
-                <h3>ACTUALIZACIONES EN TIEMPO REAL</h3>
+                <h3>ESTADO DE ACCESO</h3>
+                <div id="estado-seguridad" class="acceso-denegado">Validando credenciales...</div>
             </div>
         </div>
 
@@ -67,13 +70,17 @@
     </div>
 
     <script>
-        // Conectar con el servidor
+        // CONFIGURACIÓN DE SEGURIDAD - CAMBIA ESTA LLAVE POR LA MISMA QUE EN TU SERVIDOR
+        const LLAVE_SOFI = "tu-llave-secreta-personalizada-aqui";
         const socket = io();
 
-        // Crear escena 3D con Three.js
-        let escena, camara, renderizador;
+        // Enviar llave para validar acceso al conectarse
+        socket.emit('validar-llave-sofi', LLAVE_SOFI);
 
-        // Inicializar escena 3D
+        // Variables para la escena 3D
+        let escena, camara, renderizador, cerebro3D, zonasNeuronales = {};
+
+        // Función para inicializar la proyección 3D
         function initEscena3D() {
             // Escena
             escena = new THREE.Scene();
@@ -96,58 +103,73 @@
                 transparent: true,
                 opacity: 0.7
             });
-            const cerebro = new THREE.Mesh(geometriaCerebro, materialBase);
-            escena.add(cerebro);
+            cerebro3D = new THREE.Mesh(geometriaCerebro, materialBase);
+            escena.add(cerebro3D);
 
-            // Zonas neuronales adicionales
-            const zonas = [
-                { color: 0xFF5733, posicion: {x: 0.5, y: 0.5, z: 0.5} },
-                { color: 0x2ECC71, posicion: {x: -0.5, y: -0.5, z: 0.5} },
-                { color: 0x9B59B6, posicion: {x: 0.5, y: -0.5, z: -0.5} }
-            ];
-
-            zonas.forEach(zona => {
-                const geoZona = new THREE.SphereGeometry(0.2, 16, 16);
-                const matZona = new THREE.MeshBasicMaterial({ color: zona.color });
-                const meshZona = new THREE.Mesh(geoZona, matZona);
-                meshZona.position.set(zona.posicion.x, zona.posicion.y, zona.posicion.z);
-                escena.add(meshZona);
-            });
+            // Zonas neuronales
+            zonasNeuronales = {
+                motor: new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 16), new THREE.MeshBasicMaterial({ color: 0xFF5733 })),
+                cognitiva: new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 16), new THREE.MeshBasicMaterial({ color: 0x3498DB })),
+                sensorial: new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 16), new THREE.MeshBasicMaterial({ color: 0x2ECC71 }))
+            };
+            zonasNeuronales.motor.position.set(0.5, 0.5, 0.5);
+            zonasNeuronales.cognitiva.position.set(-0.5, -0.5, 0.5);
+            zonasNeuronales.sensorial.position.set(0.5, -0.5, -0.5);
+            Object.values(zonasNeuronales).forEach(zona => escena.add(zona));
 
             // Animar escena
             function animate() {
                 requestAnimationFrame(animate);
-                cerebro.rotation.x += 0.005;
-                cerebro.rotation.y += 0.005;
+                cerebro3D.rotation.x += 0.005;
+                cerebro3D.rotation.y += 0.005;
                 renderizador.render(escena, camara);
             }
             animate();
         }
 
-        // Escuchar datos del servidor
+        // Manejar respuesta de acceso permitido
         socket.on('bienvenida', data => {
-            document.getElementById('id-usuario').textContent = data.cerebroDigital.idUsuario;
-            document.getElementById('dispositivo-usuario').textContent = data.dispositivo;
+            document.getElementById('estado-seguridad').className = 'acceso-permitido';
+            document.getElementById('estado-seguridad').textContent = "✅ ACCESO PERMITIDO - SOFI ACTIVA";
+            document.getElementById('datos-usuario').style.display = "block";
+            initEscena3D();
         });
 
-        // Actualizaciones en tiempo real
+        // Manejar datos del usuario
+        socket.on('proyeccionCerebro', data => {
+            document.getElementById('id-usuario').textContent = data.idUsuario || "USUARIO_SOFI";
+            document.getElementById('dispositivo-usuario').textContent = data.dispositivo || "CONECTADO";
+        });
+
+        // Manejar actualizaciones en tiempo real
         socket.on('actualizacionTiempoReal', data => {
+            // Mostrar mensaje de actualización
             const div = document.createElement('div');
             div.className = 'actualizacion';
-            div.textContent = `${data.tiempo}: Zona ${data.zona} activa (${data.memoria})`;
+            div.textContent = `${data.tiempo}: Zona ${data.zona} activa`;
             document.getElementById('actualizaciones').appendChild(div);
+
+            // Actualizar visualización de zona neuronal
+            Object.values(zonasNeuronales).forEach(zona => zona.visible = false);
+            if (data.zona.includes("Motora")) zonasNeuronales.motor.visible = true;
+            if (data.zona.includes("Cognitiva")) zonasNeuronales.cognitiva.visible = true;
+            if (data.zona.includes("Sensorial")) zonasNeuronales.sensorial.visible = true;
         });
 
-        // Inicializar escena 3D al cargar
-        window.onload = () => {
-            initEscena3D();
-        };
+        // Manejar acceso denegado o desconexión
+        socket.on('disconnect', () => {
+            document.getElementById('estado-seguridad').className = 'acceso-denegado';
+            document.getElementById('estado-seguridad').textContent = "❌ ACCESO DENEGADO - LLAVE INCORRECTA O SERVICIO NO DISPONIBLE";
+            document.getElementById('datos-usuario').style.display = "none";
+        });
 
         // Ajustar tamaño al cambiar ventana
         window.addEventListener('resize', () => {
-            camara.aspect = window.innerWidth * 0.75 / window.innerHeight;
-            camara.updateProjectionMatrix();
-            renderizador.setSize(window.innerWidth * 0.75, window.innerHeight);
+            if (camara && renderizador) {
+                camara.aspect = window.innerWidth * 0.75 / window.innerHeight;
+                camara.updateProjectionMatrix();
+                renderizador.setSize(window.innerWidth * 0.75, window.innerHeight);
+            }
         });
     </script>
 </body>
