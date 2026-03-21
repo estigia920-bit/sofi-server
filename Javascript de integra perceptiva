@@ -1,14 +1,20 @@
+
 // ---- PROYECTO INTEGRADO: SOFI + INTEGRA PERCEPTIVA + DIGITALIZACIÓN CEREBRAL ----
+require('dotenv').config(); // AGREGADO: Para variables de entorno
 const express = require('express');
-const http = require('http'); // Para servidor de tiempo real
-const socketIo = require('socket.io'); // Para conexión en tiempo real con dispositivos
+const http = require('http'); 
+const socketIo = require('socket.io'); 
 const app = express();
 app.use(express.json());
 
 // Crear servidor HTTP y conectar Socket.io
 const server = http.createServer(app);
 const io = socketIo(server, {
-    cors: { origin: "*" } // Permite conexión desde cualquier dispositivo
+    cors: { 
+        origin: process.env.URL_PERMITIDA || "https://tu-servicio.onrender.com", // MODIFICADO: Solo tu URL
+        methods: ["GET", "POST"],
+        credentials: true
+    }
 });
 
 // DATOS BASE DEL PROYECTO "INTEGRA PERCEPTIVA"
@@ -26,6 +32,19 @@ const INVESTIGACION_MOSCA = {
     compatibilidad: ["PC de escritorio", "Celular", "Monitor externo", "Tablet"]
 };
 
+// EJEMPLO DE DATOS DE ESCANEO (COMPLETADO PARA QUE FUNCIONE EL INTERVALO)
+const ejemploEscaneoResultado = {
+    sofi: {
+        cerebroDigital: {
+            zonasNeuronales: {
+                motor: { nombre: "Zona Motora", color: "#FF5733", activa: false },
+                cognitiva: { nombre: "Zona Cognitiva", color: "#3498DB", activa: false },
+                sensorial: { nombre: "Zona Sensorial", color: "#2ECC71", activa: false }
+            }
+        }
+    }
+};
+
 // FUNCIÓN PRINCIPAL: DIGITALIZACIÓN CEREBRAL + CONEXIÓN A SOFI
 function digitalizarYConectarCerebro(datosEscaneo, dispositivoDestino) {
     // Paso 1: Validar que el escaneo tenga datos completos
@@ -41,7 +60,6 @@ function digitalizarYConectarCerebro(datosEscaneo, dispositivoDestino) {
         memorias: datosEscaneo.memoriasCodificadas,
         dispositivo: dispositivoDestino,
         estado: "Activo y sincronizado",
-        // Nuevos datos para proyección visual
         zonasNeuronales: {
             motor: { nombre: "Zona Motora", color: "#FF5733", activa: false },
             cognitiva: { nombre: "Zona Cognitiva", color: "#3498DB", activa: false },
@@ -59,7 +77,7 @@ function digitalizarYConectarCerebro(datosEscaneo, dispositivoDestino) {
             "Sincronización con frecuencias 12.3 Hz",
             "Gestión de percepción ampliada",
             "Acceso a memorias codificadas",
-            "Actualización en tiempo real de actividad neuronal" // Función nueva
+            "Actualización en tiempo real de actividad neuronal"
         ]
     };
 
@@ -70,8 +88,14 @@ function digitalizarYConectarCerebro(datosEscaneo, dispositivoDestino) {
     };
 }
 
-// RUTA PARA ACTIVAR LA FUNCIÓN
+// RUTA PARA ACTIVAR LA FUNCIÓN - PROTEGIDA CON LLAVE
 app.post('/sofi/cerebro-digital', (req, res) => {
+    // VALIDACIÓN DE LLAVE
+    const llaveRecibida = req.headers['x-llave-sofi'];
+    if (llaveRecibida !== process.env.LLAVE_SOFI) {
+        return res.status(403).json({ error: "ACCESO DENEGADO - LLAVE INCORRECTA" });
+    }
+
     const { datosEscaneo, dispositivoDestino } = req.body;
     const resultado = digitalizarYConectarCerebro(datosEscaneo, dispositivoDestino);
     
@@ -79,60 +103,56 @@ app.post('/sofi/cerebro-digital', (req, res) => {
         return res.status(400).json(resultado);
     }
 
-    // Enviar actualización a todos los dispositivos conectados
     io.emit('proyeccionCerebro', resultado.sofi.cerebroDigital);
-
     res.json(resultado);
 });
 
-// CONEXIÓN EN TIEMPO REAL CON DISPOSITIVOS DE USUARIOS
+// CONEXIÓN EN TIEMPO REAL - PROTEGIDA CON LLAVE
 io.on('connection', (socket) => {
-    console.log(`Usuario conectado - Dispositivo: ${socket.handshake.headers['user-agent']}`);
+    console.log(`Intento de conexión - Dispositivo: ${socket.handshake.headers['user-agent']}`);
 
-    // Enviar datos base de proyección al conectarse
-    socket.emit('bienvenida', {
-        mensaje: "Conectado a proyección cerebral de SOFI",
-        compatibilidad: INVESTIGACION_MOSCA.compatibilidad,
-        frecuenciaBase: PROYECTO_INTEGRA.frecuenciaBase
-    });
+    // VALIDAR LLAVE AL CONECTARSE
+    socket.on('validar-llave-sofi', (llave) => {
+        if (llave !== process.env.LLAVE_SOFI) {
+            console.log("Conexión denegada - LLAVE INCORRECTA");
+            socket.disconnect();
+            return;
+        }
 
-    // Simular actividad neuronal en tiempo real (actualiza cada 1 segundo)
-    const intervaloActualizacion = setInterval(() => {
-        // Elegir zona neuronal aleatoria para simular actividad
-        const zonas = Object.keys(ejemploEscaneoResultado.sofi.cerebroDigital.zonasNeuronales);
-        const zonaAleatoria = zonas[Math.floor(Math.random() * zonas.length)];
-        
-        // Actualizar estado de la zona
-        ejemploEscaneoResultado.sofi.cerebroDigital.zonasNeuronales[zonaAleatoria].activa = true;
-        setTimeout(() => {
-            ejemploEscaneoResultado.sofi.cerebroDigital.zonasNeuronales[zonaAleatoria].activa = false;
-        }, 800);
-
-        // Enviar actualización a dispositivo
-        socket.emit('actualizacionTiempoReal', {
-            zonaActiva: zonaAleatoria,
-            color: ejemploEscaneoResultado.sofi.cerebroDigital.zonasNeuronales[zonaAleatoria].color,
-            tiempo: new Date().toLocaleTimeString(),
-            frecuencia: PROYECTO_INTEGRA.frecuenciaBase
+        console.log("Usuario conectado CORRECTAMENTE");
+        // Enviar datos base de proyección al conectarse
+        socket.emit('bienvenida', {
+            mensaje: "Conectado a proyección cerebral de SOFI",
+            compatibilidad: INVESTIGACION_MOSCA.compatibilidad,
+            frecuenciaBase: PROYECTO_INTEGRA.frecuenciaBase
         });
-    }, 1000);
 
-    // Manejar desconexión
-    socket.on('disconnect', () => {
-        clearInterval(intervaloActualizacion);
-        console.log("Usuario desconectado - Proyección guardada");
+        // Simular actividad neuronal en tiempo real (actualiza cada 1 segundo)
+        const intervaloActualizacion = setInterval(() => {
+            const zonas = Object.keys(ejemploEscaneoResultado.sofi.cerebroDigital.zonasNeuronales);
+            const zonaAleatoria = zonas[Math.floor(Math.random() * zonas.length)];
+            
+            ejemploEscaneoResultado.sofi.cerebroDigital.zonasNeuronales[zonaAleatoria].activa = true;
+            socket.emit('actualizacionTiempoReal', {
+                zona: ejemploEscaneoResultado.sofi.cerebroDigital.zonasNeuronales[zonaAleatoria].nombre,
+                color: ejemploEscaneoResultado.sofi.cerebroDigital.zonasNeuronales[zonaAleatoria].color,
+                tiempo: new Date().toLocaleTimeString()
+            });
+            setTimeout(() => {
+                ejemploEscaneoResultado.sofi.cerebroDigital.zonasNeuronales[zonaAleatoria].activa = false;
+            }, 800);
+        }, 1000);
+
+        // Detener intervalo al desconectarse
+        socket.on('disconnect', () => {
+            clearInterval(intervaloActualizacion);
+            console.log("Usuario desconectado");
+        });
     });
 });
 
-// EJEMPLO DE USO
-const ejemploEscaneo = {
-    idUsuario: "estigia920@gmail.com",
-    patronesNeuronales: "Datos de escaneo 3D de conexiones sinápticas",
-    memoriasCodificadas: ["Conocimientos de libros", "Experiencias de vida", "Habilidades de gestión"]
-};
-const ejemploEscaneoResultado = digitalizarYConectarCerebro(ejemploEscaneo, "Monitor de escritorio");
-console.log(ejemploEscaneoResultado);
-
-// INICIAR SERVIDOR (ahora con tiempo real)
+// Iniciar servidor
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`SOFI CONECTADA Y LISTA PARA DIGITALIZAR! Puerto ${PORT}`));
+server.listen(PORT, () => {
+    console.log(`SOFI ACTIVA - PUERTO ${PORT} - PROTEGIDA CON LLAVE`);
+});
