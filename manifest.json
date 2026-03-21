@@ -1,13 +1,18 @@
 {
-  "name": "sofi-integra-perceptiva",
-  "version": "1.0.0",
-  "private": true,
-  "dependencies": {
-    "express": "^4.18.2",
-    "socket.io": "^4.7.4",
-    "dotenv": "^16.3.1"
-  },
-  "scripts": {
-    "start": "node server.js"
-  }
+  "name": "SOFI - INTEGRA PERCEPTIVA",
+  "short_name": "SOFI",
+  "description": "Proyecto de digitalización cerebral con acceso restringido",
+  "start_url": "/?llave=acceso-seguro", // Solo accede con llave
+  "display": "standalone",
+  "background_color": "#0a0a1a",
+  "theme_color": "#3498DB",
+  
+  // CONFIGURACIÓN DE SEGURIDAD EN EL MANIFIESTO
+  "permissions": [
+    "https://tu-servicio.onrender.com/*", // Solo tu dominio
+    "storage", "notifications"
+  ],
+  "allowed_origins": [
+    "https://tu-servicio.onrender.com"
+  ]
 }
