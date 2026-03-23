@@ -5,7 +5,7 @@
   "main": "server.js",
   "license": "MIT",
   "engines": {
-    "node": "18.x || 20.x"
+    "node": "18.x"
   },
   "scripts": {
     "start": "node server.js"
@@ -15,6 +15,6 @@
     "socket.io": "^4.7.5",
     "dotenv": "^16.4.5",
     "cors": "^2.8.5",
-    "brain.js": "^2.0.0"
+    "brain.js": "1.6.0"
   }
 }
