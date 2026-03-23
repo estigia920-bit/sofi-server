@@ -35,10 +35,9 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:cen
 .hero-stats{display:flex;gap:2.5rem;flex-wrap:wrap;justify-content:center}
 .stat-num{font-family:'Space Mono',monospace;font-size:1.7rem;font-weight:700;color:var(--accent2);display:block}
 .stat-label{font-size:.72rem;color:var(--muted);letter-spacing:.05em}
-
-/* === NUEVO: HZ LIVE === */
 #live-hz{font-family:'Space Mono',monospace;font-size:2.8rem;color:var(--green);margin:1rem 0}
 .status-dot{display:inline-block;width:12px;height:12px;background:#00ff88;border-radius:50%;animation:pulse 2s infinite}
+.status-dot.offline{background:#ff4444;animation:none}
 @keyframes pulse{0%{opacity:1}50%{opacity:0.4}100%{opacity:1}}
 </style>
 </head>
@@ -65,11 +64,10 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:cen
     <a href="#" class="btn-secondary">Ver Mapa 3D</a>
   </div>
 
-  <!-- HZ LIVE -->
   <div style="text-align:center;margin-top:2rem">
-    <div class="status-dot"></div>
-    <span style="margin-left:8px;color:#00ff88;font-size:.9rem">SOFI ACTIVA EN RENDER</span><br>
-    <span id="live-hz">12.3 Hz</span>
+    <div class="status-dot" id="status-dot"></div>
+    <span id="status-text" style="margin-left:8px;color:#00ff88;font-size:.9rem">Conectando SOFI...</span><br>
+    <span id="live-hz">-- Hz</span>
     <div style="font-size:.75rem;color:var(--muted);margin-top:8px">Frecuencia K'uhul en tiempo real</div>
   </div>
 
@@ -80,25 +78,47 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:cen
   </div>
 </div>
 
-<!-- Agrega aquí el resto de tu página original (productos, teoría, etc.) -->
-
 <script>
-  // === CONEXIÓN A TU RENDER ===
-  const socket = io('https://sofi-asistente.onrender.com');   // ← CAMBIA SI TU URL ES DIFERENTE
+  const SOFI_URL = 'https://sofi-mcpp.onrender.com';
+  const SOFI_KEY = 'SOFI-VHGzTs-K1N-v4';
+
+  const socket     = io(SOFI_URL);
+  const hzEl       = document.getElementById('live-hz');
+  const dotEl      = document.getElementById('status-dot');
+  const statusEl   = document.getElementById('status-text');
 
   socket.on('connect', () => {
-    console.log('✅ SOFI conectada desde Netlify');
+    console.log('✅ SOFI conectada');
+    statusEl.textContent = 'SOFI ACTIVA EN RENDER';
+    statusEl.style.color = '#00ff88';
+    dotEl.classList.remove('offline');
+    socket.emit('validar-llave', SOFI_KEY);
+  });
+
+  socket.on('disconnect', () => {
+    statusEl.textContent = 'SOFI DESCONECTADA';
+    statusEl.style.color = '#ff4444';
+    dotEl.classList.add('offline');
+    hzEl.textContent = '-- Hz';
   });
 
   socket.on('panel-datos', (data) => {
-    const hzElement = document.getElementById('live-hz');
-    if (data.frecuencia) {
-      hzElement.textContent = parseFloat(data.frecuencia).toFixed(1) + ' Hz';
+    if (data.panelInfo?.frecuencia) {
+      hzEl.textContent = parseFloat(data.panelInfo.frecuencia).toFixed(1) + ' Hz';
     }
   });
 
-  // Si quieres ver más datos en consola:
-  socket.on('actividad-zona', (data) => console.log('Actividad:', data));
+  socket.on('actividad-zona', (data) => {
+    if (data.hz) {
+      hzEl.textContent = parseFloat(data.hz).toFixed(1) + ' Hz';
+    }
+  });
+
+  socket.on('panel-error', (msg) => {
+    console.error('Error SOFI:', msg);
+    statusEl.textContent = 'Error de conexión';
+    statusEl.style.color = '#ff4444';
+  });
 </script>
 </body>
 </html>
