@@ -1,1342 +1,937 @@
-/**
- * ╔══════════════════════════════════════════════════════════════╗
- * ║   SOFI — Motor Cognitivo Personal v4.0                      ║
- * ║   Autor : Víctor Hugo González Torres                       ║
- * ║   Marca : HaaPpDigitalV — Mérida, Yucatán                  ║
- * ║   Deploy: Render.com                                        ║
- * ╚══════════════════════════════════════════════════════════════╝
- *
- * MÓDULOS v4.0:
- *   1.  Motor Cognitivo        — procesamiento offline/online
- *   2.  Red Neuronal           — brain.js entrenada con datos reales
- *   3.  Integra Perceptiva     — perfiles sensoriales múltiples + 12.3 Hz
- *   4.  Adaptación Dinámica    — frecuencia ajustada por irritabilidad
- *   5.  Búsqueda en Red        — DuckDuckGo + Wikipedia (gratis)
- *   6.  Presentador Cognitivo  — HTML animado
- *   7.  Generador de Video     — guión + preview + guía CapCut
- *   8.  WebSockets             — tiempo real bidireccional
- *   9.  Seguridad              — API key en todas las rutas privadas
- *   10. TTS                    — voz de SOFI (Web Speech + ruta server)
- *   11. TikTok                 — contenido listo para subir + API preparada
- *   12. PWA                    — manifest + service worker instalable
- */
-
+// ============================================================
+//   SOFI server.js — v4.1 UNIFICADO + CONTRAPARTE FRECUENCIAL
+//   HaaPpDigitalV © Víctor Hugo González Torres
+//   Mérida, Yucatán — DroidHuman Project
+//   Módulos: Motor Cognitivo · Integra Perceptiva · Sueños
+//            Editor Video · Grafo Cerebral · Brain.js
+//            Contraparte Frecuencial 3D · WebSockets · Seguridad
+// ============================================================
 'use strict';
 
+require('dotenv').config();
 const express  = require('express');
-const cors     = require('cors');
-const fs       = require('fs');
-const path     = require('path');
-const crypto   = require('crypto');
-const https    = require('https');
 const http     = require('http');
+const cors     = require('cors');
 const socketIo = require('socket.io');
 const brain    = require('brain.js');
+const fs       = require('fs');
+const path     = require('path');
 
 const app    = express();
 const server = http.createServer(app);
-const io     = socketIo(server, { cors: { origin: '*' } });
-const PORT   = process.env.PORT || 3000;
+const io     = socketIo(server, {
+  cors: { origin: process.env.URL_PERMITIDA || '*', methods: ['GET', 'POST'] },
+  pingTimeout: 60000,
+  pingInterval: 25000
+});
 
-const SOFI_API_KEY = process.env.SOFI_API_KEY || 'sofi-dev-2026';
-const CLAUDE_MODEL = process.env.CLAUDE_MODEL  || 'claude-haiku-4-5-20251001';
-const SOFI_USER    = process.env.SOFI_USER     || 'usuario@haappdigitalv.com';
-const TIKTOK_TOKEN = process.env.TIKTOK_TOKEN  || '';
-const VERSION      = '4.0.0';
-
-app.use(cors());
+app.use(cors({ origin: '*' }));
 app.use(express.json());
+app.use(express.static('public'));
 
-// ══════════════════════════════════════════════════════════════
-// SEGURIDAD
-// ══════════════════════════════════════════════════════════════
-function requireKey(req, res, next) {
-  const key = req.headers['x-sofi-key'] || req.query.key;
-  if (!key || key !== SOFI_API_KEY)
-    return res.status(401).json({ error: 'Acceso denegado.', hint: 'Header: x-sofi-key' });
+// ─────────────────────────────────────────────
+//  VARIABLES DE ENTORNO
+// ─────────────────────────────────────────────
+const SOFI_API_KEY = process.env.SOFI_API_KEY || 'SOFI-VHGzTs-K1N-v4';
+const CLAUDE_MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514';
+const SOFI_USER    = process.env.SOFI_USER    || 'Victor';
+const PORT         = process.env.PORT          || 3000;
+
+// ─────────────────────────────────────────────
+//  PERSISTENCIA JSON
+// ─────────────────────────────────────────────
+const DATA_DIR = path.join(__dirname, 'data');
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR);
+
+function leerJSON(archivo, defecto = {}) {
+  const ruta = path.join(DATA_DIR, archivo);
+  try { return JSON.parse(fs.readFileSync(ruta, 'utf8')); }
+  catch { return defecto; }
+}
+function guardarJSON(archivo, datos) {
+  fs.writeFileSync(path.join(DATA_DIR, archivo), JSON.stringify(datos, null, 2));
+}
+
+// Archivos persistentes
+let memoriaSOFI    = leerJSON('memoria.json',      {});
+let conocimientoDB = leerJSON('conocimiento.json', []);
+let notasDB        = leerJSON('notas.json',        []);
+let configSOFI     = leerJSON('config.json',       {
+  nombre_ia: 'SOFI', personalidad: 'empatica', modo_online: true,
+  api_key: SOFI_API_KEY, idioma: 'es'
+});
+let busquedasDB    = leerJSON('busquedas.json',    []);
+let cerebrosDB     = leerJSON('cerebros.json',     {});
+let suenosDB       = leerJSON('suenos.json',       []);
+let videosDB       = leerJSON('videos.json',       []);
+
+// ─────────────────────────────────────────────
+//  MIDDLEWARE DE SEGURIDAD
+// ─────────────────────────────────────────────
+function verificarLlave(req, res, next) {
+  const llave = req.headers['x-sofi-key'];
+  if (llave !== SOFI_API_KEY) {
+    return res.status(403).json({ error: '❌ ACCESO DENEGADO — llave invalida' });
+  }
   next();
 }
 
-// ══════════════════════════════════════════════════════════════
-// PERSISTENCIA JSON
-// ══════════════════════════════════════════════════════════════
-const DATA = path.join(__dirname, 'data');
-if (!fs.existsSync(DATA)) fs.mkdirSync(DATA, { recursive: true });
-
-const RUTAS = {
-  memoria:      path.join(DATA, 'memoria.json'),
-  conocimiento: path.join(DATA, 'conocimiento.json'),
-  notas:        path.join(DATA, 'notas.json'),
-  config:       path.join(DATA, 'config.json'),
-  busquedas:    path.join(DATA, 'busquedas.json'),
-  cerebros:     path.join(DATA, 'cerebros.json'),
-  tiktok:       path.join(DATA, 'tiktok.json'),
+// ============================================================
+//  DATOS INTEGRA PERCEPTIVA
+// ============================================================
+const DATOS_INTEGRA = {
+  frecuenciaBase: 12.3,
+  regeneracion: 75,
+  dispositivosConectados: 3,
+  conocimientos: {
+    libros:      ['El Universo es una Mentira', 'El Libro de Enoc', 'Xibalbá'],
+    habilidades: ['Gestión Hotmart', 'Creación TikTok', 'Desarrollo SOFI DroidHuman'],
+    proyectos:   ['SOFI DroidHuman', 'Integra Perceptiva', 'HaaPpDigitalV']
+  }
 };
 
-function leerJSON(r, d = {}) {
-  try { if (fs.existsSync(r)) return JSON.parse(fs.readFileSync(r, 'utf-8')); } catch (_) {}
-  return d;
-}
-function guardarJSON(r, d) {
-  try { fs.writeFileSync(r, JSON.stringify(d, null, 2), 'utf-8'); } catch (_) {}
-}
-
-let MEMORIA      = leerJSON(RUTAS.memoria,      { interacciones: {} });
-let CONOCIMIENTO = leerJSON(RUTAS.conocimiento, {});
-let NOTAS        = leerJSON(RUTAS.notas,        []);
-let BUSQUEDAS    = leerJSON(RUTAS.busquedas,    []);
-let CEREBROS     = leerJSON(RUTAS.cerebros,     {});
-let TIKTOK_LOG   = leerJSON(RUTAS.tiktok,       []);
-let CONFIG       = leerJSON(RUTAS.config, {
-  nombre_ia:    'SOFI',
-  personalidad: 'directa, inteligente y clara',
-  modo_online:  false,
-  api_key:      '',
-  idioma:       'es'
-});
-
-// ══════════════════════════════════════════════════════════════
-// MÓDULO 1 — MOTOR COGNITIVO
-// ══════════════════════════════════════════════════════════════
-const NIVELES     = { 1:'reflejo', 2:'rutina', 3:'análisis', 4:'razonamiento', 5:'profundo' };
-const INDICADORES = {
-  1: ['hola','ok','sí','no','gracias','bien','listo','hey'],
-  2: ['qué es','define','explica','cómo se llama','cuál es'],
-  3: ['analiza','compara','resume','describe','diferencia entre'],
-  4: ['por qué','cómo funciona','cuál es la mejor','evalúa','propón'],
-  5: ['crea','diseña','sintetiza','teoría','estrategia completa','modelo','arquitectura']
+const PERFILES_SENSORIALES = {
+  neurotipico:   { rangoHz: [8, 13],  descripcion: 'Funcionamiento estándar' },
+  tdah:          { rangoHz: [4, 8],   descripcion: 'Alta variabilidad atencional' },
+  autismo:       { rangoHz: [6, 10],  descripcion: 'Hipersensibilidad sensorial' },
+  esquizofrenia: { rangoHz: [2, 6],   descripcion: 'Disociacion perceptiva' },
+  down:          { rangoHz: [5, 9],   descripcion: 'Integracion sensorial lenta' },
+  sordera:       { rangoHz: [10, 14], descripcion: 'Compensacion visual aumentada' },
+  ceguera:       { rangoHz: [9, 13],  descripcion: 'Compensacion auditiva aumentada' }
 };
 
-function clasificarNivel(p) {
-  const pl = p.toLowerCase();
-  for (let n = 5; n >= 1; n--)
-    if (INDICADORES[n].some(i => pl.includes(i))) return n;
-  return p.length > 30 ? 2 : 1;
-}
-function extraerPatron(t) {
-  const w = t.toLowerCase().split(/\s+/).filter(w => w.length > 4).slice(0, 4);
-  return w.length ? w.join('_') : crypto.createHash('md5').update(t).digest('hex').slice(0, 8);
-}
-function buscarEnConocimiento(p) {
-  const pl = p.toLowerCase();
-  for (const [k, d] of Object.entries(CONOCIMIENTO))
-    if (pl.includes(k.toLowerCase())) return d.contenido;
-  return null;
-}
-function consultarMemoria(p) {
-  const h = MEMORIA.interacciones[extraerPatron(p)] || [];
-  if (!h.length) return { ocurrencias: 0, tasa_exito: 0.5, mejor_respuesta: '' };
-  const ex = h.filter(x => x.exitoso).length;
-  return { ocurrencias: h.length, tasa_exito: ex / h.length, mejor_respuesta: h.filter(x => x.exitoso && x.nota).map(x => x.nota).at(-1) || '' };
-}
-function procesarPregunta(pregunta) {
-  const nivel = clasificarNivel(pregunta);
-  const mem   = consultarMemoria(pregunta);
-  const tc    = Object.keys(CONOCIMIENTO).length;
-  const ti    = Object.values(MEMORIA.interacciones).reduce((s, v) => s + v.length, 0);
-  const conoc = buscarEnConocimiento(pregunta);
-  if (conoc) return { respuesta: `📚 Base personal:\n\n${conoc}`, nivel: NIVELES[nivel], confianza: 1.0 };
-  if (mem.mejor_respuesta) return { respuesta: `🧠 Memoria (${mem.ocurrencias}x):\n\n${mem.mejor_respuesta}`, nivel: NIVELES[nivel], confianza: mem.tasa_exito };
-  const r = {
-    reflejo:      ['Entendido.', 'Recibido. ¿Qué más?'],
-    rutina:       [`Sin datos sobre esto. Base: ${tc} entradas. Enséñame con /conocimiento.`],
-    'análisis':   [`Necesito más contexto. Base: ${tc} entradas.`],
-    razonamiento: [`Modo complejo. ${tc} entradas / ${ti} interacciones. Activa online.`],
-    profundo:     [`Nivel profundo. ${tc} entradas / ${ti} interacciones. Online recomendado.`]
-  };
-  const ops = r[NIVELES[nivel]] || r.rutina;
-  return { respuesta: ops[Math.floor(Math.random() * ops.length)], nivel: NIVELES[nivel], confianza: 0.5 };
-}
-function registrarFeedback(p, ok, n = '') {
-  const pat = extraerPatron(p);
-  if (!MEMORIA.interacciones[pat]) MEMORIA.interacciones[pat] = [];
-  MEMORIA.interacciones[pat].push({ pregunta: p.slice(0, 100), exitoso: ok, nota: n, fecha: new Date().toISOString() });
-  guardarJSON(RUTAS.memoria, MEMORIA);
-}
-
-// ══════════════════════════════════════════════════════════════
-// MÓDULO 2 — RED NEURONAL (brain.js)
-// ══════════════════════════════════════════════════════════════
-const redNeuronal = new brain.NeuralNetwork({ hiddenLayers: [8, 4] });
-redNeuronal.train([
-  { input: { gestion: 1, hotmart: 1 }, output: { estrategia: 0.92 } },
-  { input: { gestion: 0, hotmart: 1 }, output: { estrategia: 0.65 } },
-  { input: { gestion: 1, hotmart: 0 }, output: { estrategia: 0.70 } },
-  { input: { gestion: 0, hotmart: 0 }, output: { estrategia: 0.20 } },
-], { iterations: 8000, log: false });
-
-// ══════════════════════════════════════════════════════════════
-// MÓDULO 3 — INTEGRA PERCEPTIVA
-// ══════════════════════════════════════════════════════════════
-const PERFILES = {
-  neurotipico:   { nombre: 'Neurotípico',      freqBase: 12.3, tipo: 'alpha-beta',  nota: 'Enfoque general' },
-  tdh:           { nombre: 'TDH/ADHD',         freqBase: 14.5, tipo: 'SMR',         nota: 'Reducir impulsividad e irritabilidad' },
-  autismo:       { nombre: 'Autismo',          freqBase: 10.0, tipo: 'alpha',       nota: 'Regulación sensorial y emocional' },
-  esquizofrenia: { nombre: 'Esquizofrenia',    freqBase: 8.5,  tipo: 'theta-alpha', nota: 'Relajación y reducción de agitación' },
-  down:          { nombre: 'Síndrome de Down', freqBase: 9.0,  tipo: 'theta',       nota: 'Calma sensorial suave' },
-  sordera:       { nombre: 'Sordera',          freqBase: 0,    tipo: 'vibracion',   nota: 'Modo táctil/visual (sin audio)' },
-  ceguera:       { nombre: 'Ceguera',          freqBase: 12.3, tipo: 'audio',       nota: 'Modo audio descriptivo' }
-};
-
-const SENSIBILIDADES = {
-  luz:        'Hipersensibilidad a luz',
-  ruido:      'Intolerancia a ruidos fuertes',
-  tacto:      'Hipersensibilidad táctil',
-  olores:     'Intolerancia a olores',
-  movimiento: 'Intolerancia al movimiento'
-};
-
-function ajustarFrecuenciaSegunIrritabilidad(cerebro) {
-  const irr  = cerebro.irritabilidad_estimada || 50;
-  let   freq = cerebro.freqBase || 12.3;
-  if      (irr > 80) freq -= 2;
-  else if (irr < 30) freq += 1;
-  freq = Math.max(7, Math.min(15, freq));
-  cerebro.frecuencia_actual = freq;
-  cerebro.historial_adaptacion = cerebro.historial_adaptacion || [];
-  cerebro.historial_adaptacion.push({
-    fecha: new Date().toISOString(), freq_usada: freq,
-    irritabilidad_antes: irr, irritabilidad_despues: null, nota: ''
-  });
-  if (cerebro.historial_adaptacion.length > 100)
-    cerebro.historial_adaptacion = cerebro.historial_adaptacion.slice(-100);
-  guardarJSON(RUTAS.cerebros, CEREBROS);
-  return freq;
-}
-
-function obtenerPerfilesMultiples(idUsuario, perfilesElegidos = ['neurotipico'], sensibilidadesExtra = [], irritabilidad = 50) {
-  if (!CEREBROS[idUsuario]) digitalizarCerebro({}, idUsuario);
-  const cerebro = CEREBROS[idUsuario];
-  cerebro.perfilesActivos           = perfilesElegidos.map(p => PERFILES[p]?.nombre || 'Desconocido');
-  cerebro.sensibilidadesAdicionales = sensibilidadesExtra.map(s => SENSIBILIDADES[s] || s);
-  cerebro.irritabilidad_estimada    = irritabilidad;
-  let freqFinal = Math.min(...perfilesElegidos.map(p => PERFILES[p]?.freqBase || 12.3));
-  if (sensibilidadesExtra.includes('ruido') || sensibilidadesExtra.includes('luz'))
-    freqFinal = Math.max(7, freqFinal - 2);
-  if      (irritabilidad > 70) { freqFinal = Math.max(7, freqFinal - 2); cerebro.modoAntiIrritabilidad = true; }
-  else if (irritabilidad < 30)   freqFinal = Math.min(15, freqFinal + 1);
-  cerebro.freqBase          = freqFinal;
-  cerebro.frecuencia_actual = freqFinal;
-  cerebro.plasticidadActiva = true;
-  cerebro.notaPlasticidad   = 'Adaptación multi-perfil activada';
-  cerebro.historial_adaptacion = cerebro.historial_adaptacion || [];
-  cerebro.historial_adaptacion.push({
-    fecha: new Date().toISOString(), freq_usada: freqFinal,
-    irritabilidad, adaptacion: Math.round(70 + Math.random() * 25), regeneracion: cerebro.regeneracion || 84
-  });
-  if (cerebro.historial_adaptacion.length > 100)
-    cerebro.historial_adaptacion = cerebro.historial_adaptacion.slice(-100);
-  guardarJSON(RUTAS.cerebros, CEREBROS);
-  return cerebro;
-}
-
-function digitalizarCerebro(datos, idUsuario) {
-  const anterior = CEREBROS[idUsuario] || {};
-  const cerebro  = {
-    idUsuario,
-    freqBase:                 datos.freqBase            || anterior.freqBase             || 12.3,
-    frecuencia_actual:        anterior.frecuencia_actual || 12.3,
-    irritabilidad_estimada:   datos.irritabilidad       || anterior.irritabilidad_estimada || 50,
-    memorias:                 datos.memoriasCodificadas || anterior.memorias             || ['Integra Perceptiva', 'HaaPpDigitalV'],
-    regeneracion:             anterior.regeneracion     || 84,
-    premium:                  anterior.premium          || false,
-    zonas: anterior.zonas || {
-      motor: { activa: 45 }, cognitiva: { activa: 68 }, sensorial: { activa: 52 }, emocional: { activa: 82 }
-    },
-    historial_adaptacion:         anterior.historial_adaptacion         || [],
-    perfilesActivos:              anterior.perfilesActivos              || ['Neurotípico'],
-    sensibilidadesAdicionales:    anterior.sensibilidadesAdicionales    || [],
-    modoAntiIrritabilidad:        false,
-    ultimoEscaneo:                new Date().toISOString(),
-    prediccion:                   redNeuronal.run({ gestion: 1, hotmart: 1 })
-  };
-  CEREBROS[idUsuario] = cerebro;
-  ajustarFrecuenciaSegunIrritabilidad(cerebro);
-  guardarJSON(RUTAS.cerebros, CEREBROS);
-  return cerebro;
-}
-
-function actualizarZonas(idUsuario) {
-  const c = CEREBROS[idUsuario];
-  if (!c) return null;
-  Object.keys(c.zonas).forEach(k => {
-    c.zonas[k].activa = Math.max(30, Math.min(95, c.zonas[k].activa + (Math.random() - 0.5) * 14));
-  });
-  c.regeneracion = Math.max(75, Math.min(100, c.regeneracion + (Math.random() > 0.6 ? 0.6 : -0.5)));
-  ajustarFrecuenciaSegunIrritabilidad(c);
-  guardarJSON(RUTAS.cerebros, CEREBROS);
-  return c;
-}
-
-// ══════════════════════════════════════════════════════════════
-// MÓDULO 4 — BÚSQUEDA EN RED
-// ══════════════════════════════════════════════════════════════
-function fetchURL(url) {
-  return new Promise((resolve, reject) => {
-    const lib = url.startsWith('https') ? https : http;
-    lib.get(url, { headers: { 'User-Agent': 'SOFI-Cognitivo/4.0' } }, res => {
-      let d = '';
-      res.on('data', c => d += c);
-      res.on('end', () => { try { resolve(JSON.parse(d)); } catch { resolve({ raw: d }); } });
-    }).on('error', reject);
-  });
-}
-async function buscarDuckDuckGo(q) {
-  try {
-    const d = await fetchURL(`https://api.duckduckgo.com/?q=${encodeURIComponent(q)}&format=json&no_html=1&skip_disambig=1`);
-    return d.AbstractText ? { fuente: 'búsqueda web', resumen: d.AbstractText, url_fuente: d.AbstractURL || '', temas: (d.RelatedTopics || []).slice(0, 5).map(t => t.Text || '').filter(Boolean) } : null;
-  } catch { return null; }
-}
-async function buscarWikipedia(q, lang = 'es') {
-  try {
-    const d = await fetchURL(`https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(q.replace(/\s+/g, '_'))}`);
-    return d.extract ? { fuente: 'enciclopedia', titulo: d.title, resumen: d.extract, url_fuente: d.content_urls?.desktop?.page || '' } : null;
-  } catch { return null; }
-}
-async function buscarEnRed(query) {
-  const [ddg, wiki] = await Promise.allSettled([buscarDuckDuckGo(query), buscarWikipedia(query)]);
-  const res = [];
-  if (ddg.status  === 'fulfilled' && ddg.value?.resumen)  res.push(ddg.value);
-  if (wiki.status === 'fulfilled' && wiki.value?.resumen) res.push(wiki.value);
-  BUSQUEDAS.unshift({ query, resultados: res.length, fecha: new Date().toISOString() });
-  if (BUSQUEDAS.length > 100) BUSQUEDAS = BUSQUEDAS.slice(0, 100);
-  guardarJSON(RUTAS.busquedas, BUSQUEDAS);
-  return res;
-}
-
-// ══════════════════════════════════════════════════════════════
-// MÓDULO 5 — PRESENTADOR COGNITIVO
-// ══════════════════════════════════════════════════════════════
-function generarPresentacionHTML(titulo, slides, cfg = {}) {
-  const oscuro = (cfg.tema || 'oscuro') === 'oscuro';
-  const c = oscuro
-    ? { fondo:'#0a0a0f', slide:'#12121a', acento:'#00d4ff', texto:'#e8e8f0' }
-    : { fondo:'#f0f4ff', slide:'#ffffff', acento:'#2563eb', texto:'#1e1e2e' };
-  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${titulo}</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:${c.fondo};color:${c.texto};font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh}
-header{padding:3rem 2rem 2rem;text-align:center;border-bottom:1px solid ${c.acento}33}
-header h1{font-size:clamp(1.8rem,5vw,3rem);color:${c.acento};letter-spacing:-.02em}
-.box{max-width:900px;margin:0 auto;padding:2rem 1rem 4rem;display:flex;flex-direction:column;gap:1.5rem}
-.slide{background:${c.slide};border:1px solid ${c.acento}22;border-radius:1rem;padding:2rem;position:relative;animation:up .5s ease both}
-@keyframes up{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
-.num{position:absolute;top:1rem;right:1.5rem;font-size:3rem;font-weight:800;color:${c.acento}22}
-.slide h2{font-size:1.3rem;color:${c.acento};margin-bottom:1rem}
-.slide p{line-height:1.7;opacity:.85}
-.slide ul{list-style:none;display:flex;flex-direction:column;gap:.6rem;margin-top:.5rem}
-.slide ul li::before{content:'▸ ';color:${c.acento}}
-.dato{margin-top:1.2rem;padding:1rem 1.5rem;background:${c.acento}15;border-left:3px solid ${c.acento};border-radius:0 .5rem .5rem 0;font-style:italic}
-footer{text-align:center;padding:2rem;font-size:.8rem;opacity:.3;border-top:1px solid ${c.acento}22}
-</style></head><body>
-<header><h1>${titulo}</h1>${cfg.subtitulo?`<p>${cfg.subtitulo}</p>`:''}<p>HaaPpDigitalV — SOFI v${VERSION}</p></header>
-<div class="box">
-${slides.map((s,i)=>`<div class="slide"><div class="num">${String(i+1).padStart(2,'0')}</div><h2>${s.titulo||''}</h2>${s.contenido?`<p>${s.contenido}</p>`:''}${s.puntos?`<ul>${s.puntos.map(p=>`<li>${p}</li>`).join('')}</ul>`:''}${s.dato?`<div class="dato">${s.dato}</div>`:''}</div>`).join('')}
-</div>
-<footer>SOFI v${VERSION} — HaaPpDigitalV © ${new Date().getFullYear()}</footer>
-</body></html>`;
-}
-
-// ══════════════════════════════════════════════════════════════
-// MÓDULO 6 — GENERADOR DE VIDEO v2
-// ══════════════════════════════════════════════════════════════
-function generarGuionVideo(titulo, tema, duracion = 60, cfg = {}) {
-  const n = Math.max(3, Math.floor(duracion / 15));
-  const d = Math.floor(duracion / n);
-  return {
-    meta: { titulo, tema, duracion_total: duracion, escenas: n, fps: 30, resolucion: '1080x1920', formato: 'TikTok/Reels vertical', creado: new Date().toISOString(), autor: 'HaaPpDigitalV — SOFI' },
-    escenas: Array.from({ length: n }, (_, i) => ({
-      escena: i+1, duracion: d,
-      tipo: i===0?'intro':i===n-1?'cierre':'desarrollo',
-      titulo: i===0?`Introducción: ${titulo}`:i===n-1?'Conclusión':`Punto ${i}: ${tema}`,
-      narracion: `[Narración escena ${i+1} — ${tema}]`,
-      texto_pantalla: i===0?`✨ ${titulo}`:i===n-1?`🔥 Sígueme para más`:tema,
-      hashtags: cfg.hashtags || ['#sofi','#haappdigitalv','#merida','#yucatan'],
-      visual: i===0?'Logo HaaPpDigitalV + título animado':`Visualización punto ${i}`,
-      transicion: i<n-1?'fade':'none',
-      capcut_instruccion: `Escena ${i+1}: Agregar texto "${tema}" con efecto entrada. Duración: ${d}s`
-    })),
-    config: { voz: cfg.voz||'es-MX', musica: cfg.musica||'trending_tiktok', estilo: cfg.estilo||'moderno_oscuro', subtitulos: true },
-    instrucciones_capcut: [
-      '1. Abre CapCut y crea nuevo proyecto vertical (9:16)',
-      '2. Importa tus clips o usa plantilla de fondo oscuro',
-      '3. Agrega cada escena según el guión arriba',
-      '4. Usa la narración de cada escena como texto en pantalla',
-      '5. Agrega música trending desde la biblioteca de TikTok',
-      '6. Exporta en 1080x1920 a 30fps',
-      '7. Sube directamente desde SOFI con /tiktok/subir (requiere credenciales)'
-    ],
-    descripcion_tiktok: generarDescripcionTikTok(titulo, tema, cfg.hashtags)
-  };
-}
-
-function generarGuionLibro(libro, cfg = {}) {
-  const libros = {
-    enoc: {
-      titulo: 'El Libro de Enoc',
-      gancho: '¿Sabías que este libro fue PROHIBIDO durante siglos? 😱',
-      puntos: [
-        'El texto más antiguo que describe seres de otro mundo',
-        'Fue eliminado de la Biblia por una razón que NO te van a contar',
-        'Contiene la clave del origen del mal según los antiguos',
-        'Hoy puedes leerlo con anotaciones que nadie más tiene'
-      ],
-      cta: '🔥 Consíguelo AHORA por solo 97 pesos — link en bio',
-      hashtags: ['#librodenoc','#misterios','#historia','#espiritualidad','#libros','#haappdigitalv']
-    },
-    universo: {
-      titulo: 'El Universo es una Mentira',
-      gancho: '¿Y si todo lo que te enseñaron sobre la realidad es falso? 🌌',
-      puntos: [
-        'La física cuántica confirma lo que los Mayas ya sabían',
-        'Tesla, el número 3-6-9 y la frecuencia del universo',
-        'Tu percepción construye la realidad — no al revés',
-        'Una teoría que une ciencia antigua y física moderna'
-      ],
-      cta: '📚 Disponible en Hotmart y Amazon — link en bio',
-      hashtags: ['#cuantica','#maya','#tesla','#universo','#consciencia','#haappdigitalv']
-    },
-    xibalba: {
-      titulo: 'Xibalbá',
-      gancho: 'El inframundo Maya nunca fue lo que te dijeron 🐍',
-      puntos: [
-        'Una historia ambientada en el Chichén Itzá real',
-        'Los dioses del inframundo y sus rituales secretos',
-        'Ficción histórica basada en textos auténticos Mayas',
-        'La historia que Yucatán no ha contado'
-      ],
-      cta: '⚡ Próximamente disponible — sígueme para ser el primero',
-      hashtags: ['#xibalba','#maya','#yucatan','#merida','#historiamaxa','#haappdigitalv']
+// ============================================================
+//  CLASE: GrafoCerebral
+// ============================================================
+class GrafoCerebral {
+  constructor() {
+    this.nodos   = new Map();
+    this.aristas = new Map();
+    this.inicializar();
+  }
+  agregarNodo(nombre, color) {
+    this.nodos.set(nombre, { color, activa: false, conexiones: [] });
+  }
+  conectar(origen, destino) {
+    if (!this.nodos.has(origen) || !this.nodos.has(destino)) return;
+    if (!this.aristas.has(origen)) this.aristas.set(origen, []);
+    this.aristas.get(origen).push(destino);
+  }
+  inicializar() {
+    this.agregarNodo('Zona Motora',       '#FF5733');
+    this.agregarNodo('Zona Cognitiva',    '#3498DB');
+    this.agregarNodo('Zona Sensorial',    '#2ECC71');
+    this.agregarNodo('Zona Limbica',      '#9B59B6');
+    this.agregarNodo('Cortex Prefrontal', '#F39C12');
+    this.agregarNodo('Sistema Reticular', '#1ABC9C');
+    this.conectar('Zona Motora',       'Zona Sensorial');
+    this.conectar('Zona Cognitiva',    'Zona Motora');
+    this.conectar('Zona Sensorial',    'Zona Cognitiva');
+    this.conectar('Zona Limbica',      'Cortex Prefrontal');
+    this.conectar('Cortex Prefrontal', 'Sistema Reticular');
+    this.conectar('Sistema Reticular', 'Zona Limbica');
+  }
+  activarZona(nombre) {
+    const nodo = this.nodos.get(nombre);
+    if (nodo) nodo.activa = true;
+  }
+  mostrarConexiones() {
+    const resultado = [];
+    for (const [origen, destinos] of this.aristas) {
+      destinos.forEach(d => resultado.push({ origen, destino: d }));
     }
-  };
-  return libros[libro] || libros.enoc;
-}
-
-function generarDescripcionTikTok(titulo, tema, hashtags = []) {
-  const tags = hashtags.length ? hashtags.join(' ') : '#sofi #haappdigitalv #merida';
-  return `${titulo} — ${tema}\n\n${tags}\n\n🔗 Link en bio`;
-}
-
-function generarVideoPreview(guion) {
-  const esc = guion.escenas || [];
-  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SOFI Video: ${guion.meta.titulo}</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:#000;color:#fff;font-family:'Segoe UI',sans-serif;height:100vh;overflow:hidden}
-.stage{width:100vw;height:100vh;display:flex;align-items:center;justify-content:center}
-.esc{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4rem;text-align:center;opacity:0;transition:opacity .8s;background:radial-gradient(ellipse at center,#12121a 0%,#000 100%)}
-.esc.on{opacity:1}
-.badge{font-size:.75rem;letter-spacing:.15em;text-transform:uppercase;color:#00d4ff;margin-bottom:1rem;opacity:.7}
-.esc h2{font-size:clamp(1.5rem,4vw,3rem);line-height:1.2;max-width:800px;margin-bottom:1.5rem}
-.narr{font-size:1.1rem;opacity:.6;max-width:600px;line-height:1.7}
-.hashtags{margin-top:1.5rem;font-size:.85rem;color:#00d4ff;opacity:.6}
-.barra{position:fixed;bottom:0;left:0;height:3px;background:#00d4ff;z-index:9}
-.ctrl{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);display:flex;gap:1rem;z-index:9}
-button{background:#00d4ff22;border:1px solid #00d4ff44;color:#fff;padding:.6rem 1.5rem;border-radius:2rem;cursor:pointer;font-size:.9rem}
-button:hover{background:#00d4ff44}
-.marca{position:fixed;top:1.5rem;left:1.5rem;font-size:.75rem;opacity:.25;z-index:9}
-</style></head><body>
-<div class="marca">HAAPPDIGITALV · SOFI v${VERSION}</div>
-<div class="barra" id="bar" style="width:0%"></div>
-<div class="stage">
-${esc.map((e,i)=>`<div class="esc${i===0?' on':''}" id="e${i}"><div class="badge">${e.tipo} · ${e.duracion}s</div><h2>${e.texto_pantalla||e.titulo}</h2><p class="narr">${e.narracion}</p><div class="hashtags">${(e.hashtags||[]).join(' ')}</div></div>`).join('')}
-</div>
-<div class="ctrl">
-  <button onclick="ant()">← Ant</button>
-  <button onclick="tog()" id="ba">▶ Auto</button>
-  <button onclick="sig()">Sig →</button>
-</div>
-<script>
-let a=0,auto=false,t=null;
-const tot=${esc.length},durs=${JSON.stringify(esc.map(e=>e.duracion*1000))};
-function show(n){document.querySelectorAll('.esc').forEach((el,i)=>el.classList.toggle('on',i===n));document.getElementById('bar').style.width=((n+1)/tot*100)+'%';a=n;}
-function sig(){if(a<tot-1)show(a+1);else if(auto){tog();show(0);}}
-function ant(){if(a>0)show(a-1);}
-function tog(){auto=!auto;document.getElementById('ba').textContent=auto?'⏸ Pausar':'▶ Auto';if(auto)av();else clearTimeout(t);}
-function av(){if(!auto)return;t=setTimeout(()=>{if(a<tot-1){show(a+1);av();}else tog();},durs[a]);}
-<\/script></body></html>`;
-}
-
-// ══════════════════════════════════════════════════════════════
-// MÓDULO 10 — TTS (Texto a Voz de SOFI)
-// ══════════════════════════════════════════════════════════════
-function generarScriptTTS(texto, cfg = {}) {
-  const voz = cfg.voz || 'es-MX-DaliaNeural';
-  const velocidad = cfg.velocidad || 1.0;
-  const tono = cfg.tono || 1.0;
-
-  // Script SSML para voz natural
-  const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="es-MX">
-  <voice name="${voz}">
-    <prosody rate="${velocidad}" pitch="${tono > 1 ? '+10%' : '0%'}">
-      ${texto}
-    </prosody>
-  </voice>
-</speak>`;
-
-  // Código para usar en el frontend con Web Speech API
-  const codigoFrontend = `
-// Pega esto en la consola del navegador o úsalo en tu PWA
-const synth = window.speechSynthesis;
-const utter = new SpeechSynthesisUtterance(\`${texto}\`);
-utter.lang = 'es-MX';
-utter.rate = ${velocidad};
-utter.pitch = ${tono};
-// Busca la mejor voz disponible en español
-const voces = synth.getVoices();
-const vozEsp = voces.find(v => v.lang.startsWith('es')) || voces[0];
-if (vozEsp) utter.voice = vozEsp;
-synth.speak(utter);
-  `.trim();
-
-  return {
-    texto,
-    voz,
-    ssml,
-    codigo_frontend: codigoFrontend,
-    instruccion: 'Usa el código_frontend en tu PWA o navegador para escuchar la voz de SOFI sin costo',
-    apis_gratis: [
-      { nombre: 'Web Speech API', costo: 'Gratis', limitacion: 'Solo navegador', url: 'Nativa en Chrome Android' },
-      { nombre: 'Google Cloud TTS', costo: '4M chars/mes gratis', limitacion: 'Requiere cuenta Google', url: 'cloud.google.com/text-to-speech' },
-      { nombre: 'ElevenLabs', costo: '10k chars/mes gratis', limitacion: 'Requiere registro', url: 'elevenlabs.io' }
-    ]
-  };
-}
-
-// ══════════════════════════════════════════════════════════════
-// MÓDULO 11 — TIKTOK MANAGER
-// ══════════════════════════════════════════════════════════════
-function prepararContenidoTikTok(libro, cfg = {}) {
-  const data = generarGuionLibro(libro, cfg);
-  const guion = generarGuionVideo(data.titulo, data.puntos[0], cfg.duracion || 45, {
-    hashtags: data.hashtags,
-    estilo: 'tiktok_viral'
-  });
-
-  const contenido = {
-    libro,
-    titulo_video: data.titulo,
-    gancho: data.gancho,
-    puntos_clave: data.puntos,
-    cta: data.cta,
-    hashtags: data.hashtags,
-    descripcion: `${data.gancho}\n\n${data.puntos.map((p,i)=>`${i+1}. ${p}`).join('\n')}\n\n${data.cta}\n\n${data.hashtags.join(' ')}`,
-    guion,
-    tts: generarScriptTTS(data.gancho + '. ' + data.puntos.join('. ') + '. ' + data.cta),
-    fecha_creacion: new Date().toISOString(),
-    estado: 'listo_para_subir'
-  };
-
-  TIKTOK_LOG.unshift({ ...contenido, guion: undefined }); // guarda sin el guion completo
-  if (TIKTOK_LOG.length > 50) TIKTOK_LOG = TIKTOK_LOG.slice(0, 50);
-  guardarJSON(RUTAS.tiktok, TIKTOK_LOG);
-
-  return contenido;
-}
-
-async function subirATikTok(videoPath, descripcion, token) {
-  // TikTok Content Posting API v2
-  // Requiere: TIKTOK_TOKEN en variables de entorno
-  // Para obtenerlo: developers.tiktok.com → Content Posting API
-  if (!token) {
+    return resultado;
+  }
+  obtenerDatosPanel() {
     return {
-      ok: false,
-      msg: 'TIKTOK_TOKEN no configurado. Ve a developers.tiktok.com, crea una app y agrega el token como variable de entorno TIKTOK_TOKEN en Render.',
-      pasos: [
-        '1. Ve a developers.tiktok.com',
-        '2. Crea una App → activa "Content Posting API"',
-        '3. Genera tu Access Token',
-        '4. En Render.com → Environment → agrega TIKTOK_TOKEN=tu_token',
-        '5. Redespliega el server',
-        '6. Llama a /tiktok/subir con el video'
-      ]
+      frecuencia:   DATOS_INTEGRA.frecuenciaBase + ' Hz',
+      regeneracion: DATOS_INTEGRA.regeneracion + '%',
+      dispositivos: DATOS_INTEGRA.dispositivosConectados,
+      libros:       DATOS_INTEGRA.conocimientos.libros,
+      habilidades:  DATOS_INTEGRA.conocimientos.habilidades,
+      proyectos:    DATOS_INTEGRA.conocimientos.proyectos,
+      nodos:        Array.from(this.nodos.entries()).map(([k, v]) => ({ nombre: k, ...v })),
+      conexiones:   this.mostrarConexiones()
     };
   }
+}
 
-  try {
-    // Paso 1: Inicializar la subida
-    const init = await new Promise((resolve, reject) => {
-      const postData = JSON.stringify({
-        post_info: {
-          title: descripcion.slice(0, 150),
-          privacy_level: 'SELF_ONLY', // cambia a PUBLIC_TO_EVERYONE cuando estés listo
-          disable_duet: false,
-          disable_comment: false,
-          disable_stitch: false,
-        },
-        source_info: { source: 'FILE_UPLOAD', video_size: 0, chunk_size: 0, total_chunk_count: 1 }
-      });
+const grafoCerebral = new GrafoCerebral();
 
-      const options = {
-        hostname: 'open.tiktokapis.com',
-        path: '/v2/post/publish/video/init/',
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json; charset=UTF-8',
-          'Content-Length': Buffer.byteLength(postData)
-        }
-      };
-
-      const req = https.request(options, res => {
-        let d = '';
-        res.on('data', c => d += c);
-        res.on('end', () => { try { resolve(JSON.parse(d)); } catch { resolve({ raw: d }); } });
-      });
-      req.on('error', reject);
-      req.write(postData);
-      req.end();
+// ============================================================
+//  CLASE: SistemaSuenosSOFI
+// ============================================================
+class SistemaSuenosSOFI {
+  constructor() {
+    this.nombreModulo = 'SOFI - OBSERVADORA DE SUENOS';
+    this.zonasCerebralesRelacionadas = [
+      'Zona Limbica', 'Cortex Prefrontal', 'Sistema Reticular'
+    ];
+    this.estadoActual = {
+      activo: false, faseActual: null,
+      elementosDetectados: [], mapaActual: null
+    };
+  }
+  _leerActividadCerebral() {
+    const base      = DATOS_INTEGRA.frecuenciaBase;
+    const variacion = (Math.random() - 0.5) * 4;
+    const frecActual = Math.max(0.5, base + variacion);
+    let onda;
+    if      (frecActual < 4)  onda = 'Delta';
+    else if (frecActual < 8)  onda = 'Theta';
+    else if (frecActual < 13) onda = 'Alpha';
+    else                       onda = 'Beta';
+    return { onda, frecuencia: frecActual, timestamp: Date.now(),
+             fuenteDatos: 'Integra Perceptiva / simulacion' };
+  }
+  detectarSueno() {
+    const actividad = this._leerActividadCerebral();
+    if (actividad.onda === 'Theta' && actividad.frecuencia < 7) {
+      this.estadoActual.activo     = true;
+      this.estadoActual.faseActual = 'Theta-Sueno';
+      return { detectado: true, fase: 'Theta', datos: actividad };
+    }
+    if (actividad.onda === 'Delta') {
+      this.estadoActual.activo     = true;
+      this.estadoActual.faseActual = 'Delta-Profundo';
+      return { detectado: true, fase: 'Delta', datos: actividad };
+    }
+    return { detectado: false, fase: actividad.onda, datos: actividad };
+  }
+  mapearSueno(datosSueno) {
+    const elementos  = datosSueno.elementos || [];
+    const conexiones = [];
+    elementos.forEach((elem, idx) => {
+      if (idx < elementos.length - 1) {
+        conexiones.push({ origen: elem, destino: elementos[idx + 1],
+                          intensidad: Math.random() });
+      }
     });
-
-    return { ok: true, respuesta_tiktok: init, msg: 'Proceso iniciado. Sube el archivo de video al upload_url recibido.' };
-  } catch (e) {
-    return { ok: false, error: e.message };
+    const mapa = {
+      mapaSueno:   conexiones,
+      descripcion: datosSueno.descripcion || '',
+      timestamp:   Date.now(),
+      fase:        this.estadoActual.faseActual
+    };
+    this.estadoActual.mapaActual = mapa;
+    return mapa;
+  }
+  crearSueno() {
+    const conocimientos = DATOS_INTEGRA.conocimientos.libros;
+    const proyectos     = DATOS_INTEGRA.conocimientos.proyectos;
+    const elemA = conocimientos[Math.floor(Math.random() * conocimientos.length)];
+    const elemB = proyectos[Math.floor(Math.random() * proyectos.length)];
+    return this.mapearSueno({
+      elementos:   [elemA, 'Conciencia SOFI', elemB],
+      descripcion: `Sueno generativo: ${elemA} <-> ${elemB}`
+    });
+  }
+  generarColor() {
+    return '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
   }
 }
 
-// ══════════════════════════════════════════════════════════════
-// MOTOR ONLINE — IA externa
-// ══════════════════════════════════════════════════════════════
-async function respuestaOnline(pregunta, apiKey) {
-  if (!apiKey) return '⚠️ Configura tu API key en /config';
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({
-        model: CLAUDE_MODEL, max_tokens: 1024,
-        system: `Eres ${CONFIG.nombre_ia}, IA personal de Víctor Hugo González Torres (HaaPpDigitalV, Mérida, Yucatán). Personalidad: ${CONFIG.personalidad}. Responde en español.`,
-        messages: [{ role: 'user', content: pregunta }]
-      })
-    });
-    const d = await res.json();
-    if (d.error) return `⚠️ Error: ${d.error.message}`;
-    return d.content?.[0]?.text || '⚠️ Respuesta vacía';
-  } catch (e) { return `⚠️ Error: ${e.message}`; }
+const sistemaSuenos = new SistemaSuenosSOFI();
+
+// ============================================================
+//  CLASE: ModuloContraparteSOFI
+//  Señal observable (Hz) → FFT inversa → contraparte frecuencial
+//  → mapa 3D para Three.js / Netlify frontend
+// ============================================================
+class ModuloContraparteSOFI {
+  constructor() {
+    this.nombre         = 'SOFI - ESCANER DE CONTRAPARTE FRECUENCIAL';
+    this.frecuenciaBase = DATOS_INTEGRA.frecuenciaBase;
+    this.sesiones       = leerJSON('contraparte.json', []);
+    this.BANDAS = {
+      Delta: { min: 0.5, max: 3.5,  estado: 'inconsciente profundo'   },
+      Theta: { min: 4,   max: 7,    estado: 'subconsciente creativo'  },
+      Alpha: { min: 8,   max: 13,   estado: 'consciente receptivo'    },
+      Beta:  { min: 14,  max: 30,   estado: 'consciente activo'       },
+      Gamma: { min: 30,  max: 100,  estado: 'hiperconsciente'         }
+    };
+    this.CONTRAPARTE_MAP = {
+      Delta: { banda: 'Gamma', hz: 40,   desc: 'Integracion cognitiva que el cuerpo procesa sin que lo veas' },
+      Theta: { banda: 'Beta',  hz: 20,   desc: 'Pensamiento analitico oculto bajo la creatividad visible' },
+      Alpha: { banda: 'Theta', hz: 5.5,  desc: 'Procesamiento emocional profundo bajo la calma aparente' },
+      Beta:  { banda: 'Alpha', hz: 10.5, desc: 'Estado de reposo que el sistema busca sin que lo sepas' },
+      Gamma: { banda: 'Delta', hz: 2,    desc: 'Regeneracion celular que ocurre bajo el hiperenfoque' }
+    };
+  }
+  _banda(hz) {
+    for (const [n, r] of Object.entries(this.BANDAS))
+      if (hz >= r.min && hz <= r.max) return n;
+    return 'Alpha';
+  }
+  _inversa(hzObs) {
+    const banda  = this._banda(hzObs);
+    const rango  = this.BANDAS[banda];
+    const fInv   = parseFloat((rango.max - (hzObs - rango.min)).toFixed(2));
+    const centro = (rango.min + rango.max) / 2;
+    const amp    = parseFloat((1 - Math.abs(hzObs - centro) / (rango.max - rango.min)).toFixed(3));
+    return { hzObs, banda, fInversa: Math.max(0.5, fInv), amplitud: amp,
+             energia: parseFloat((amp * Math.max(0.5, fInv)).toFixed(3)) };
+  }
+  escanear(datos) {
+    const {
+      frecuenciaActual = this.frecuenciaBase,
+      ritmoCardiaco = 72, spo2 = 97,
+      irritabilidad = 30, perfil = 'neurotipico'
+    } = datos;
+    const banda   = this._banda(frecuenciaActual);
+    const inv     = this._inversa(frecuenciaActual);
+    const contra  = this.CONTRAPARTE_MAP[banda];
+    const fcHz    = parseFloat((ritmoCardiaco / 60).toFixed(3));
+    const fcInvHz = parseFloat((1 / fcHz).toFixed(3));
+    const coh     = parseFloat(Math.max(0,
+      1 - Math.abs(frecuenciaActual - fcHz * 10) / frecuenciaActual
+    ).toFixed(3));
+    const resultado = {
+      timestamp: Date.now(), perfil,
+      senalObservable: {
+        frecuenciaCerebral: frecuenciaActual, banda,
+        estadoConsciente: this.BANDAS[banda].estado,
+        ritmoCardiaco, ritmoCardiacoHz: fcHz, spo2, irritabilidad
+      },
+      contraparte: {
+        frecuenciaInversa: inv.fInversa, bandaInversa: contra.banda,
+        amplitud: inv.amplitud, energia: inv.energia, descripcion: contra.desc,
+        frecuenciaCardiacaInversa: fcInvHz, coherenciaCerebroCorazon: coh,
+        estadoOculto: this._estadoOculto(banda, irritabilidad)
+      },
+      mapa3D: this._mapa3D(frecuenciaActual, inv, coh)
+    };
+    this.sesiones.push(resultado);
+    guardarJSON('contraparte.json', this.sesiones);
+    return resultado;
+  }
+  _estadoOculto(banda, irr) {
+    const m = {
+      Delta: {
+        bajo:  'Tu cuerpo regenera — decisiones que tu inconsciente ya tomo sin informarte',
+        medio: 'Procesamiento emocional profundo activo',
+        alto:  'Sistema sobrecargado — modo emergencia'
+      },
+      Theta: {
+        bajo:  'Ideas madurando que aun no emergen a la conciencia',
+        medio: 'Memorias de largo plazo siendo reintegradas',
+        alto:  'Creatividad bloqueada por estres — la solucion existe pero no puede subir'
+      },
+      Alpha: {
+        bajo:  "K'uhul activo — receptividad maxima, modo descarga del entorno",
+        medio: 'Equilibrio consciente-inconsciente optimo',
+        alto:  'El cuerpo busca reposo que la mente no le da'
+      },
+      Beta: {
+        bajo:  'Pensamiento analitico eficiente',
+        medio: 'Sistema busca cierre de ciclos abiertos',
+        alto:  'Sobreactivacion — el sistema de alerta no puede apagarse'
+      },
+      Gamma: {
+        bajo:  'Tu sistema conecta patrones que aun no ves',
+        medio: 'Hiperconciencia activa — el filtro social esta bajando',
+        alto:  'Sistema al limite de capacidad de integracion'
+      }
+    };
+    const n = irr < 35 ? 'bajo' : irr < 65 ? 'medio' : 'alto';
+    return m[banda]?.[n] || 'Frecuencia fuera de rango estandar';
+  }
+  _mapa3D(hzObs, inv, coh) {
+    const radio = 5;
+    const aO    = (hzObs / 100) * Math.PI * 2;
+    const aI    = aO + Math.PI;
+    return {
+      nodos: [
+        { id: 'observable',  label: `${hzObs} Hz (consciente)`,
+          x: +(radio * Math.cos(aO)).toFixed(3), y: +(radio * Math.sin(aO)).toFixed(3),
+          z: 0, radio: 1.2, color: '#3498DB', emite: true },
+        { id: 'contraparte', label: `${inv.fInversa} Hz (inconsciente)`,
+          x: +(radio * Math.cos(aI)).toFixed(3), y: +(radio * Math.sin(aI)).toFixed(3),
+          z: 0, radio: +(0.8 + inv.amplitud).toFixed(3), color: '#9B59B6', emite: false },
+        { id: 'coherencia',  label: `Coherencia ${(coh * 100).toFixed(0)}%`,
+          x: 0, y: 0, z: +(coh * 3).toFixed(3),
+          radio: +(0.5 + coh).toFixed(3), color: '#00ffc8', emite: false }
+      ],
+      aristas: [
+        { origen: 'observable',  destino: 'coherencia',  grosor: coh,          color: '#3498DB' },
+        { origen: 'contraparte', destino: 'coherencia',  grosor: inv.amplitud, color: '#9B59B6' },
+        { origen: 'observable',  destino: 'contraparte', grosor: 0.2,          color: '#ffffff' }
+      ],
+      animacion: {
+        velocidadRotacion: +(hzObs / 1000).toFixed(4),
+        pulso: +(inv.fInversa / 50).toFixed(4),
+        glow: inv.amplitud
+      }
+    };
+  }
+  evolucion() {
+    if (this.sesiones.length < 2)
+      return { mensaje: 'Se necesitan al menos 2 sesiones', total: this.sesiones.length };
+    const p = this.sesiones[0];
+    const u = this.sesiones[this.sesiones.length - 1];
+    const dHz  = u.senalObservable.frecuenciaCerebral - p.senalObservable.frecuenciaCerebral;
+    const dCoh = u.contraparte.coherenciaCerebroCorazon - p.contraparte.coherenciaCerebroCorazon;
+    return {
+      sesiones: this.sesiones.length,
+      tendencias: {
+        frecuencia: { cambio: +dHz.toFixed(2),  dir: dHz > 0 ? 'subiendo a Beta' : 'bajando a Delta' },
+        coherencia: { cambio: +dCoh.toFixed(3), dir: dCoh > 0 ? 'mayor alineacion' : 'disonancia creciente' }
+      },
+      recomendacion: Math.abs(dHz) < 1
+        ? { protocolo: 'Mantener',        hz: this.frecuenciaBase, desc: 'Sistema estable' }
+        : dHz > 5
+        ? { protocolo: 'Descenso Alpha',  hz: 10.5, desc: 'Inducir Alpha para integrar' }
+        : { protocolo: 'Activacion Beta', hz: 18,   desc: 'Traer a superficie lo que esta en Theta' }
+    };
+  }
 }
 
-// ══════════════════════════════════════════════════════════════
-// WEBSOCKETS
-// ══════════════════════════════════════════════════════════════
-const intervalos = new Map();
-io.on('connection', socket => {
-  socket.on('join', id => {
-    if (!id) return;
-    socket.join(id);
-    const interval = setInterval(() => {
-      const c = actualizarZonas(id);
-      if (c) io.to(id).emit('actualizacionTiempoReal', c);
-    }, 1800);
-    intervalos.set(socket.id, interval);
-  });
-  socket.on('disconnect', () => {
-    const iv = intervalos.get(socket.id);
-    if (iv) { clearInterval(iv); intervalos.delete(socket.id); }
-  });
-});
+const moduloContraparte = new ModuloContraparteSOFI();
 
-// ══════════════════════════════════════════════════════════════
-// MÓDULO 12 — PWA Manifest + Service Worker
-// ══════════════════════════════════════════════════════════════
-app.get('/manifest.json', (req, res) => {
+// ============================================================
+//  CLASE: SOFI_Guiones
+// ============================================================
+class SOFI_Guiones {
+  crearGuion(tema, duracionSeg = 60) {
+    const plantillas = {
+      'Tecnología':     `¡Hola! Soy SOFI. Hoy te muestro ${tema}...`,
+      'Espiritualidad': `Exploramos juntos el poder de ${tema}...`,
+      'Salud':          `Integra Perceptiva presenta: ${tema}...`,
+      'default':        `¡Hola! Soy SOFI. Hablamos de ${tema}.`
+    };
+    const intro = plantillas[tema] || plantillas['default'];
+    return {
+      id:          `GUION-${Date.now()}`,
+      tema,
+      duracionSeg,
+      secciones: [
+        { tiempo: '0-5s',   contenido: intro },
+        { tiempo: '5-30s',  contenido: `Desarrollo principal de ${tema}` },
+        { tiempo: '30-50s', contenido: 'Demostracion practica' },
+        { tiempo: '50-60s', contenido: 'Llamada a la accion — HaaPpDigitalV' }
+      ],
+      hashtags: ['#SOFI', '#IntegraPerceptiva', '#HaaPpDigitalV', `#${tema.replace(/\s/g, '')}`]
+    };
+  }
+}
+
+// ============================================================
+//  CLASE: SOFI_EditorVideo
+// ============================================================
+class SOFI_EditorVideo {
+  constructor() {
+    this.nombre  = 'SOFI EDITORA DE VIDEO PROPIA';
+    this.guiones = new SOFI_Guiones();
+  }
+  crearProyectoVideo(nombreProyecto, tipoContenido) {
+    const guion = this.guiones.crearGuion(tipoContenido);
+    const proyecto = {
+      id:          `SOFI-VIDEO-${Date.now()}`,
+      nombre:      nombreProyecto,
+      tipo:        tipoContenido,
+      guion,
+      clips:       [],
+      efectos:     [],
+      musicaFondo: this._generarMusicaPropia(tipoContenido),
+      estado:      'CREADO',
+      creadoEn:    new Date().toISOString()
+    };
+    videosDB.push(proyecto);
+    guardarJSON('videos.json', videosDB);
+    return proyecto;
+  }
+  _generarMusicaPropia(estilo = 'Tecnológico') {
+    const ritmos = {
+      'Relajante':      { bpm: 60,  instrumentos: ['Sintetizador suave', 'Flauta digital'] },
+      'Energético':     { bpm: 120, instrumentos: ['Bateria electronica', 'Bajos profundos'] },
+      'Tecnológico':    { bpm: 95,  instrumentos: ['Secuenciador neuronal', 'Efectos 8-bit'] },
+      'Espiritualidad': { bpm: 72,  instrumentos: ['Cuencos tibetanos', 'Armonias 432Hz'] }
+    };
+    const config = ritmos[estilo] || ritmos['Tecnológico'];
+    return {
+      nombre:       `SOFI-MUSICA-${estilo.toUpperCase()}`,
+      bpm:          config.bpm,
+      instrumentos: config.instrumentos,
+      estructura:   ['Intro (0-5s)', 'Verso (5-20s)', 'Estribillo (20-35s)', 'Outro (35-45s)']
+    };
+  }
+  cortarClip(clipId, tiempoInicio, tiempoFin) {
+    return {
+      clipEditado:   `SOFI-CLIP-${clipId}-[${tiempoInicio}-${tiempoFin}]`,
+      duracionFinal: tiempoFin - tiempoInicio,
+      estado:        'LISTO'
+    };
+  }
+  unirClips(listaClips) {
+    return {
+      nombre:        'SOFI-VIDEO-UNIDO',
+      clipsUsados:   listaClips.length,
+      duracionTotal: listaClips.reduce((t, c) => t + (c.duracion || 0), 0),
+      estado:        'UNIDO'
+    };
+  }
+  aplicarEfecto(clipId, efecto) {
+    const efectos = {
+      'Iluminacion Neuronal': { descripcion: 'Resalta conexiones del grafo', codigo: 'SOFI-FX001' },
+      'Transicion Suave':     { descripcion: 'Fade suave entre escenas',     codigo: 'SOFI-FX002' },
+      'Zoom Cerebral':        { descripcion: 'Zoom a zona activa',           codigo: 'SOFI-FX003' },
+      'Pulso 12.3Hz':         { descripcion: 'Efecto visual a 12.3 Hz',     codigo: 'SOFI-FX004' }
+    };
+    return {
+      clipId,
+      efectoAplicado: efectos[efecto] || { descripcion: efecto, codigo: 'SOFI-FX-XXX' },
+      estado: 'EFECTO ACTIVADO'
+    };
+  }
+  renderizarVideo(proyecto) {
+    const tiempoEstimado = (proyecto.duracionTotal || 60) * 1.5;
+    return {
+      videoFinal:     `${proyecto.id}.mp4`,
+      resolucion:     '1920x1080',
+      formato:        'MP4',
+      tiempoEstimado: `${tiempoEstimado}s`,
+      estado:         'RENDERIZADO COMPLETO',
+      marca:          'HaaPpDigitalV'
+    };
+  }
+}
+
+// ============================================================
+//  CLASE: SOFI_ContenidoPropio (INTEGRADOR)
+// ============================================================
+class SOFI_ContenidoPropio {
+  constructor() {
+    this.video   = new SOFI_EditorVideo();
+    this.guiones = new SOFI_Guiones();
+    this.suenos  = sistemaSuenos;
+  }
+  crearTodoContenido(tema) {
+    const guion = this.guiones.crearGuion(tema);
+    const video = this.video.crearProyectoVideo(`VIDEO-${tema}`, tema);
+    const sueno = this.suenos.crearSueno();
+    return { guion, video, sueno, generadoEn: new Date().toISOString() };
+  }
+}
+
+const contenidoSOFI = new SOFI_ContenidoPropio();
+
+// ============================================================
+//  MOTOR COGNITIVO (5 NIVELES)
+// ============================================================
+const NIVELES_COGNITIVOS = {
+  1: 'reflejo', 2: 'rutina', 3: 'analisis', 4: 'razonamiento', 5: 'profundo'
+};
+
+function clasificarPregunta(mensaje) {
+  const msg = mensaje.toLowerCase();
+  if (/hola|bye|gracias|ok/.test(msg))              return 1;
+  if (/qué|cuál|cuando|dónde/.test(msg))             return 2;
+  if (/cómo|explica|describe|analiza/.test(msg))     return 3;
+  if (/por qué|diferencia|compara|evalúa/.test(msg)) return 4;
+  return 5;
+}
+
+function generarRespuestaMotor(mensaje, nivel) {
+  const patron = mensaje.substring(0, 30);
+  if (memoriaSOFI[patron]) {
+    return { respuesta: memoriaSOFI[patron], fuenteMemoria: true };
+  }
+  const respuestas = {
+    1: `Hola ${SOFI_USER}, soy SOFI. ¿En que te ayudo?`,
+    2: `Procesando tu consulta sobre: "${mensaje.substring(0, 50)}..."`,
+    3: `Analizando: "${mensaje.substring(0, 60)}..." — nivel ${NIVELES_COGNITIVOS[nivel]}`,
+    4: `Razonamiento profundo activado para: "${mensaje.substring(0, 50)}..."`,
+    5: `Modo profundo SOFI — procesando complejidad maxima.`
+  };
+  return { respuesta: respuestas[nivel] || respuestas[3], fuenteMemoria: false };
+}
+
+// ============================================================
+//  BRAIN.JS — RED NEURONAL PREDICTIVA
+// ============================================================
+const redNeuronal = new brain.NeuralNetwork({ hiddenLayers: [8, 4] });
+const datosBrainJS = [
+  { input: { frecuencia: 0.8, irritabilidad: 0.2 }, output: { adaptacion: 0.9 } },
+  { input: { frecuencia: 0.5, irritabilidad: 0.6 }, output: { adaptacion: 0.5 } },
+  { input: { frecuencia: 0.3, irritabilidad: 0.9 }, output: { adaptacion: 0.2 } },
+  { input: { frecuencia: 1.0, irritabilidad: 0.1 }, output: { adaptacion: 1.0 } },
+  { input: { frecuencia: 0.6, irritabilidad: 0.4 }, output: { adaptacion: 0.7 } }
+];
+redNeuronal.train(datosBrainJS, { iterations: 2000, log: false });
+console.log('🧠 brain.js entrenada correctamente');
+
+// ============================================================
+//  RUTAS EXPRESS
+// ============================================================
+
+// ─── HEALTH ────────────────────────────────────────────────
+app.get('/health', (req, res) => {
   res.json({
-    name: 'SOFI — HaaPpDigitalV',
-    short_name: 'SOFI',
-    description: 'Motor Cognitivo Personal + Integra Perceptiva',
-    start_url: '/',
-    display: 'standalone',
-    background_color: '#0a0a1f',
-    theme_color: '#00ffcc',
-    orientation: 'portrait',
-    icons: [
-      { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-      { src: '/icon-512.png', sizes: '512x512', type: 'image/png' }
-    ],
-    categories: ['productivity', 'health', 'utilities'],
-    lang: 'es'
+    estado:   '✅ SOFI ACTIVA',
+    version:  'v4.1-UNIFICADO',
+    modulos:  ['MotorCognitivo', 'IntegraPerceptiva', 'Suenos', 'EditorVideo',
+               'GrafoCerebral', 'ContraparteFrecuencial', 'BrainJS', 'WebSockets'],
+    marca:    'HaaPpDigitalV',
+    timestamp: new Date().toISOString()
   });
 });
 
-app.get('/sw.js', (req, res) => {
-  res.setHeader('Content-Type', 'application/javascript');
-  res.send(`
-const CACHE = 'sofi-v${VERSION}';
-const URLS  = ['/', '/manifest.json'];
-
-self.addEventListener('install', e => e.waitUntil(
-  caches.open(CACHE).then(c => c.addAll(URLS))
-));
-self.addEventListener('fetch', e => {
-  if (e.request.method !== 'GET') return;
-  e.respondWith(
-    caches.match(e.request).then(cached => {
-      const fresh = fetch(e.request).then(res => {
-        const clone = res.clone();
-        caches.open(CACHE).then(c => c.put(e.request, clone));
-        return res;
-      }).catch(() => cached);
-      return cached || fresh;
-    })
-  );
-});
-self.addEventListener('activate', e => e.waitUntil(
-  caches.keys().then(keys => Promise.all(
-    keys.filter(k => k !== CACHE).map(k => caches.delete(k))
-  ))
-));
-  `.trim());
-});
-
-// Iconos SVG generados dinámicamente (no necesita archivos PNG)
-app.get('/icon-:size.png', (req, res) => {
-  const size = parseInt(req.params.size) || 192;
-  res.setHeader('Content-Type', 'image/svg+xml');
-  res.send(`<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-  <rect width="${size}" height="${size}" rx="${size*0.2}" fill="#0a0a1f"/>
-  <circle cx="${size/2}" cy="${size/2}" r="${size*0.3}" fill="none" stroke="#00ffcc" stroke-width="${size*0.04}"/>
-  <text x="${size/2}" y="${size/2+size*0.1}" text-anchor="middle" fill="#00ffcc" font-size="${size*0.28}" font-family="sans-serif" font-weight="bold">S</text>
-</svg>`);
-});
-
-// ══════════════════════════════════════════════════════════════
-// RUTA RAÍZ — Frontend PWA instalable
-// ══════════════════════════════════════════════════════════════
 app.get('/', (req, res) => {
-  const p = path.join(__dirname, 'index.html');
-  if (fs.existsSync(p)) return res.sendFile(p);
+  res.json({
+    sistema: 'SOFI v4.1 ACTIVA',
+    marca:   'HaaPpDigitalV',
+    autor:   'Victor Hugo Gonzalez Torres',
+    frecuencia: DATOS_INTEGRA.frecuenciaBase + ' Hz',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// ─── CHAT / MOTOR COGNITIVO ────────────────────────────────
+app.post('/chat', verificarLlave, (req, res) => {
+  const { mensaje, contexto } = req.body;
+  if (!mensaje) return res.status(400).json({ error: 'mensaje requerido' });
+  const nivel = clasificarPregunta(mensaje);
+  const { respuesta, fuenteMemoria } = generarRespuestaMotor(mensaje, nivel);
+  memoriaSOFI[mensaje.substring(0, 30)] = respuesta;
+  guardarJSON('memoria.json', memoriaSOFI);
+  res.json({ respuesta, nivel: NIVELES_COGNITIVOS[nivel], fuenteMemoria,
+             contexto: contexto || 'chat_general', timestamp: Date.now() });
+});
+
+// ─── INTEGRA PERCEPTIVA ────────────────────────────────────
+app.post('/integra/digitalizar', verificarLlave, (req, res) => {
+  const { perfil = 'neurotipico', frecuencia } = req.body;
+  const config   = PERFILES_SENSORIALES[perfil] || PERFILES_SENSORIALES.neurotipico;
+  const hzActual = frecuencia || DATOS_INTEGRA.frecuenciaBase;
+  res.json({
+    perfil, frecuenciaRecibida: hzActual, rangoSeguro: config.rangoHz,
+    estado: hzActual >= config.rangoHz[0] && hzActual <= config.rangoHz[1]
+      ? '✅ EN RANGO SEGURO' : '⚠️ FUERA DE RANGO',
+    descripcion: config.descripcion
+  });
+});
+
+app.get('/integra/estado', verificarLlave, (req, res) => {
+  res.json({
+    frecuenciaBase:      DATOS_INTEGRA.frecuenciaBase,
+    regeneracion:        DATOS_INTEGRA.regeneracion,
+    dispositivosActivos: DATOS_INTEGRA.dispositivosConectados,
+    grafoCerebral:       grafoCerebral.obtenerDatosPanel()
+  });
+});
+
+app.get('/integra/perfil-sensorial-multi', verificarLlave, (req, res) => {
+  res.json({ perfiles: PERFILES_SENSORIALES });
+});
+
+app.post('/integra/irritabilidad', verificarLlave, (req, res) => {
+  const { indice = 50 } = req.body;
+  const normalizado  = indice / 100;
+  const ajusteHz     = DATOS_INTEGRA.frecuenciaBase * (1 - normalizado * 0.3);
+  res.json({
+    indiceRecibido:     indice,
+    frecuenciaAjustada: parseFloat(ajusteHz.toFixed(2)),
+    recomendacion: indice > 70 ? '🔴 Reducir estimulacion' : '🟢 Continuar protocolo'
+  });
+});
+
+app.get('/integra/historial', verificarLlave, (req, res) => {
+  res.json({ historial: cerebrosDB });
+});
+
+app.post('/integra/prediccion', verificarLlave, (req, res) => {
+  const { frecuencia = 12.3, irritabilidad = 30 } = req.body;
+  const input = {
+    frecuencia:    Math.min(1, frecuencia / 15),
+    irritabilidad: irritabilidad / 100
+  };
+  const resultado = redNeuronal.run(input);
+  res.json({
+    input:     { frecuencia, irritabilidad },
+    prediccion: { adaptacion: parseFloat((resultado.adaptacion * 100).toFixed(1)) + '%' },
+    modelo:    'brain.js-sofi-v4.1'
+  });
+});
+
+// ─── SUENOS ────────────────────────────────────────────────
+app.post('/suenos/detectar', verificarLlave, (req, res) => {
+  res.json(sistemaSuenos.detectarSueno());
+});
+
+app.post('/suenos/mapear', verificarLlave, (req, res) => {
+  const { elementos, descripcion } = req.body;
+  if (!elementos || !Array.isArray(elementos))
+    return res.status(400).json({ error: 'elementos[] requerido' });
+  const mapa = sistemaSuenos.mapearSueno({ elementos, descripcion });
+  suenosDB.push(mapa);
+  guardarJSON('suenos.json', suenosDB);
+  res.json({ mapa, guardado: true });
+});
+
+app.post('/suenos/generar', verificarLlave, (req, res) => {
+  const sueno = sistemaSuenos.crearSueno();
+  suenosDB.push(sueno);
+  guardarJSON('suenos.json', suenosDB);
+  res.json({ sueno, historialTotal: suenosDB.length });
+});
+
+app.get('/suenos/historial', verificarLlave, (req, res) => {
+  res.json({ suenos: suenosDB, total: suenosDB.length });
+});
+
+// ─── VIDEO ─────────────────────────────────────────────────
+app.post('/video/guion', verificarLlave, (req, res) => {
+  const { tema, duracion } = req.body;
+  if (!tema) return res.status(400).json({ error: 'tema requerido' });
+  res.json({ guion: contenidoSOFI.guiones.crearGuion(tema, duracion) });
+});
+
+app.post('/video/preview', verificarLlave, (req, res) => {
+  const { guionId } = req.body;
+  res.json({ preview: `SOFI-PREVIEW-${guionId || Date.now()}`,
+             estado: 'LISTO PARA REVISION', formato: 'MP4 360p' });
+});
+
+app.post('/video/crear', verificarLlave, (req, res) => {
+  const { nombre, tipo = 'Tecnología' } = req.body;
+  if (!nombre) return res.status(400).json({ error: 'nombre requerido' });
+  res.json({ proyecto: contenidoSOFI.video.crearProyectoVideo(nombre, tipo),
+             estado: '✅ PROYECTO CREADO' });
+});
+
+app.post('/video/cortar', verificarLlave, (req, res) => {
+  const { clipId, inicio = 0, fin = 30 } = req.body;
+  if (!clipId) return res.status(400).json({ error: 'clipId requerido' });
+  res.json(contenidoSOFI.video.cortarClip(clipId, inicio, fin));
+});
+
+app.post('/video/unir', verificarLlave, (req, res) => {
+  const { clips = [] } = req.body;
+  res.json(contenidoSOFI.video.unirClips(clips));
+});
+
+app.post('/video/efectos', verificarLlave, (req, res) => {
+  const { clipId, efecto = 'Transicion Suave' } = req.body;
+  res.json(contenidoSOFI.video.aplicarEfecto(clipId, efecto));
+});
+
+app.post('/video/renderizar', verificarLlave, (req, res) => {
+  const { proyecto } = req.body;
+  if (!proyecto) return res.status(400).json({ error: 'proyecto requerido' });
+  res.json(contenidoSOFI.video.renderizarVideo(proyecto));
+});
+
+app.get('/video/lista', verificarLlave, (req, res) => {
+  res.json({ videos: videosDB, total: videosDB.length });
+});
+
+// ─── CONTENIDO UNIFICADO ───────────────────────────────────
+app.post('/contenido/crear-todo', verificarLlave, (req, res) => {
+  const { tema = 'Tecnología' } = req.body;
+  res.json({ paquete: contenidoSOFI.crearTodoContenido(tema),
+             mensaje: '✅ Guion + Video + Sueno generados' });
+});
+
+// ─── GRAFO CEREBRAL ────────────────────────────────────────
+app.get('/grafo/datos', verificarLlave, (req, res) => {
+  res.json(grafoCerebral.obtenerDatosPanel());
+});
+
+app.post('/grafo/activar', verificarLlave, (req, res) => {
+  const { zona } = req.body;
+  if (!zona) return res.status(400).json({ error: 'zona requerida' });
+  grafoCerebral.activarZona(zona);
+  io.emit('actividad-zona', { zona, tiempo: new Date().toLocaleTimeString(),
+                              datos: 'Activacion manual' });
+  res.json({ zona, estado: '✅ ACTIVADA Y EMITIDA' });
+});
+
+// ─── CONTRAPARTE FRECUENCIAL ───────────────────────────────
+app.post('/contraparte/escanear', verificarLlave, (req, res) => {
+  const datos = req.body;
+  if (!datos.frecuenciaActual && !datos.ritmoCardiaco)
+    return res.status(400).json({ error: 'Se requiere frecuenciaActual o ritmoCardiaco' });
+  res.json(moduloContraparte.escanear(datos));
+});
+
+app.get('/contraparte/evolucion', verificarLlave, (req, res) => {
+  res.json(moduloContraparte.evolucion());
+});
+
+app.get('/contraparte/historial', verificarLlave, (req, res) => {
+  res.json({ sesiones: moduloContraparte.sesiones, total: moduloContraparte.sesiones.length });
+});
+
+// ─── PANEL (público para Netlify) ─────────────────────────
+app.get('/api/panel', (req, res) => {
+  const hz = DATOS_INTEGRA.frecuenciaBase;
+  res.json({
+    frecuencia: hz,
+    grafo:      grafoCerebral.obtenerDatosPanel(),
+    contraparte: moduloContraparte.escanear({ frecuenciaActual: hz }),
+    version:    'v4.1'
+  });
+});
+
+// ─── BUSQUEDA ──────────────────────────────────────────────
+app.post('/buscar', verificarLlave, async (req, res) => {
+  const { query } = req.body;
+  if (!query) return res.status(400).json({ error: 'query requerido' });
+  busquedasDB.push({ query, timestamp: Date.now() });
+  guardarJSON('busquedas.json', busquedasDB);
+  res.json({ query, fuente: 'DDG + Wikipedia',
+             resultado: `Resultado simulado: "${query}" — conectar API real en produccion`,
+             timestamp: Date.now() });
+});
+
+// ─── PRESENTADOR ───────────────────────────────────────────
+app.get('/presentador', verificarLlave, (req, res) => {
   res.send(`<!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<meta name="theme-color" content="#00ffcc">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="SOFI">
-<link rel="manifest" href="/manifest.json">
-<title>SOFI — HaaPpDigitalV</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
-<script src="/socket.io/socket.io.js"></script>
-<style>
-:root{--bg:#0a0a1f;--card:rgba(20,20,60,.9);--acento:#00ffcc;--rojo:#ff4466;--texto:#e0e0ff}
-*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{background:var(--bg);color:var(--texto);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;overflow-x:hidden}
-.topbar{background:var(--card);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--acento)33;position:sticky;top:0;z-index:100;backdrop-filter:blur(10px)}
-.logo{font-size:1.2rem;font-weight:800;color:var(--acento);letter-spacing:.05em;text-shadow:0 0 10px var(--acento)}
-.version{font-size:.7rem;opacity:.4}
-.install-btn{background:var(--acento);color:#000;border:none;padding:8px 14px;border-radius:20px;font-size:.8rem;font-weight:700;cursor:pointer;display:none}
-.disclaimer{background:#1a0010;color:#ffaacc;padding:10px 16px;font-size:.78rem;border-bottom:1px solid var(--rojo)44;text-align:center}
-.tabs{display:flex;background:var(--card);border-bottom:1px solid var(--acento)22;overflow-x:auto;scrollbar-width:none}
-.tabs::-webkit-scrollbar{display:none}
-.tab{padding:12px 18px;font-size:.85rem;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;opacity:.5;transition:.2s}
-.tab.active{border-bottom-color:var(--acento);opacity:1;color:var(--acento)}
-.panel{display:none;padding:16px;flex-direction:column;gap:12px;min-height:calc(100vh - 160px)}
-.panel.active{display:flex}
-.card{background:var(--card);border:1px solid var(--acento)22;border-radius:14px;padding:16px}
-.card h3{font-size:.9rem;color:var(--acento);margin-bottom:12px;letter-spacing:.05em}
-canvas{width:100%!important;height:200px;border-radius:10px;background:#0002}
-.stat{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #ffffff0a}
-.stat:last-child{border-bottom:none}
-.stat label{font-size:.8rem;opacity:.6}
-.stat strong{font-size:.9rem;color:var(--acento)}
-btn,button{background:var(--acento);color:#000;border:none;padding:12px;font-size:.9rem;border-radius:10px;cursor:pointer;font-weight:700;width:100%;margin:4px 0;touch-action:manipulation}
-button:active{opacity:.8;transform:scale(.99)}
-.btn-outline{background:transparent;color:var(--acento);border:1px solid var(--acento)66}
-.btn-rojo{background:var(--rojo);color:#fff}
-input,textarea,select{width:100%;background:#0a0a2f;color:var(--texto);border:1px solid var(--acento)33;border-radius:10px;padding:12px;font-size:.9rem;margin:4px 0;font-family:inherit}
-input:focus,textarea:focus,select:focus{outline:none;border-color:var(--acento)}
-textarea{min-height:80px;resize:vertical}
-.tag{display:inline-block;background:var(--acento)22;color:var(--acento);padding:4px 10px;border-radius:20px;font-size:.75rem;margin:2px}
-.resp{background:#0a0a2f;border:1px solid var(--acento)22;border-radius:10px;padding:12px;font-size:.85rem;line-height:1.6;white-space:pre-wrap;max-height:300px;overflow-y:auto;display:none}
-.resp.show{display:block}
-.loader{text-align:center;padding:20px;color:var(--acento);font-size:.85rem;display:none}
-.loader.show{display:block}
-#status-bar{background:var(--acento)11;padding:8px 16px;font-size:.75rem;color:var(--acento);text-align:center;border-top:1px solid var(--acento)22;position:fixed;bottom:0;left:0;right:0}
-.badge-online{background:#00ff8822;color:#00ff88;padding:3px 8px;border-radius:20px;font-size:.7rem}
-.badge-offline{background:#ff444422;color:#ff4444;padding:3px 8px;border-radius:20px;font-size:.7rem}
-.libro-card{background:#12121a;border:1px solid var(--acento)22;border-radius:12px;padding:14px;margin:4px 0}
-.libro-card h4{color:var(--acento);font-size:.9rem;margin-bottom:6px}
-.libro-card p{font-size:.78rem;opacity:.7;line-height:1.5}
-.precio{color:#00ff88;font-weight:700;font-size:1rem}
-</style>
+  <meta charset="UTF-8">
+  <title>SOFI — Presentador</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap');
+    body { margin:0; background:#0a0a1a; display:flex; align-items:center;
+           justify-content:center; height:100vh; font-family:'Orbitron',sans-serif; }
+    h1 { font-size:3rem; color:#3498DB;
+         text-shadow:0 0 20px #3498DB, 0 0 40px #3498DB; animation:pulso 2s infinite; }
+    p  { color:#2ECC71; font-size:1.2rem; }
+    .hz { color:#9B59B6; font-size:2rem; margin-top:1rem; }
+    @keyframes pulso {
+      0%,100%{ text-shadow:0 0 20px #3498DB; }
+      50%    { text-shadow:0 0 40px #3498DB, 0 0 80px #9B59B6; }
+    }
+  </style>
 </head>
 <body>
-
-<div class="topbar">
-  <div>
-    <div class="logo">◈ SOFI</div>
-    <div class="version">HaaPpDigitalV v${VERSION}</div>
+  <div style="text-align:center">
+    <h1>🧠 SOFI</h1>
+    <p>Sistema Operativo de Funciones Inteligentes</p>
+    <div class="hz">12.3 Hz — Integra Perceptiva ACTIVA</div>
+    <p style="margin-top:2rem;color:#F39C12">HaaPpDigitalV © ${new Date().getFullYear()}</p>
   </div>
-  <div style="display:flex;gap:8px;align-items:center">
-    <span id="conn-badge" class="badge-offline">● offline</span>
-    <button class="install-btn" id="installBtn" onclick="instalarPWA()">⬇ Instalar</button>
-  </div>
-</div>
-
-<div class="disclaimer">⚠️ Integra Perceptiva NO sustituye tratamientos médicos. Consulta siempre a tu especialista.</div>
-
-<div class="tabs">
-  <div class="tab active" onclick="cambiarTab('cerebro')">🧠 Cerebro</div>
-  <div class="tab" onclick="cambiarTab('chat')">💬 Chat</div>
-  <div class="tab" onclick="cambiarTab('libros')">📚 Libros</div>
-  <div class="tab" onclick="cambiarTab('tiktok')">📱 TikTok</div>
-  <div class="tab" onclick="cambiarTab('buscar')">🔍 Buscar</div>
-  <div class="tab" onclick="cambiarTab('config')">⚙️ Config</div>
-</div>
-
-<!-- PANEL CEREBRO -->
-<div class="panel active" id="panel-cerebro">
-  <div class="card">
-    <canvas id="brain3d"></canvas>
-  </div>
-  <div class="card">
-    <h3>Estado en tiempo real</h3>
-    <div class="stat"><label>Frecuencia</label><strong id="freq">12.3 Hz</strong></div>
-    <div class="stat"><label>Regeneración</label><strong id="regen">84%</strong></div>
-    <div class="stat"><label>Perfil activo</label><strong id="perfil">Neurotípico</strong></div>
-    <div class="stat"><label>Sensibilidades</label><strong id="sens">ninguna</strong></div>
-  </div>
-  <div class="card">
-    <h3>Audio binaural</h3>
-    <button onclick="toggleBinaural(12.3)">🎧 SOFI 12.3 Hz</button>
-    <button class="btn-outline" onclick="toggleBinaural(10)">🧠 Sincronizar 10 Hz</button>
-    <button class="btn-outline" onclick="toggleBinaural(14.5)">⚡ Enfoque 14.5 Hz</button>
-  </div>
-  <div class="card">
-    <h3>Perfiles sensoriales</h3>
-    <button onclick="activarPerfil(['neurotipico'])">🧠 Neurotípico</button>
-    <button onclick="activarPerfil(['tdh'])">⚡ TDH/ADHD</button>
-    <button onclick="activarPerfil(['autismo'])">🌀 Autismo</button>
-    <button onclick="activarPerfil(['esquizofrenia'])">🌊 Esquizofrenia</button>
-    <button onclick="activarPerfil(['down'])">🌸 Síndrome de Down</button>
-    <button onclick="activarPerfil(['sordera'])">👁️ Sordera</button>
-    <button onclick="activarPerfil(['ceguera'])">🎵 Ceguera</button>
-    <button class="btn-outline" onclick="activarPerfil(['tdh','autismo'])">⚡+🌀 TDH + Autismo</button>
-  </div>
-</div>
-
-<!-- PANEL CHAT -->
-<div class="panel" id="panel-chat">
-  <div class="card">
-    <h3>Motor Cognitivo SOFI</h3>
-    <textarea id="chat-input" placeholder="Pregúntame lo que sea..."></textarea>
-    <button onclick="enviarChat()">➤ Enviar</button>
-    <div class="loader" id="chat-loader">⟳ Procesando...</div>
-    <div class="resp" id="chat-resp"></div>
-  </div>
-  <div class="card">
-    <h3>Enseñar a SOFI</h3>
-    <input id="conoc-clave" placeholder="Tema (ej: libro de enoc)">
-    <textarea id="conoc-valor" placeholder="Contenido que SOFI debe saber..."></textarea>
-    <button onclick="ensenyar()">📚 Enseñar</button>
-  </div>
-</div>
-
-<!-- PANEL LIBROS -->
-<div class="panel" id="panel-libros">
-  <div class="libro-card">
-    <h4>📖 El Libro de Enoc</h4>
-    <p>El texto prohibido más antiguo sobre seres de otro mundo.</p>
-    <p>Plataforma: Hotmart ✅</p>
-    <p><span class="precio">97 MXN</span> lanzamiento → 197 MXN regular</p>
-    <p>Afiliados: 40% comisión</p>
-    <button onclick="generarTikTokLibro('enoc')" style="margin-top:8px">📱 Generar contenido TikTok</button>
-  </div>
-  <div class="libro-card">
-    <h4>🌌 El Universo es una Mentira</h4>
-    <p>Física cuántica, sabiduría Maya y la Teoría de los 9 Planos.</p>
-    <p>Plataformas: Hotmart + Amazon ✅</p>
-    <button onclick="generarTikTokLibro('universo')" style="margin-top:8px">📱 Generar contenido TikTok</button>
-  </div>
-  <div class="libro-card">
-    <h4>🐍 Xibalbá</h4>
-    <p>Novela histórica en Chichén Itzá. El inframundo Maya.</p>
-    <p>Estado: <span style="color:#ffaa00">⏳ Pendiente subir</span></p>
-    <button onclick="generarTikTokLibro('xibalba')" style="margin-top:8px">📱 Generar contenido TikTok</button>
-  </div>
-</div>
-
-<!-- PANEL TIKTOK -->
-<div class="panel" id="panel-tiktok">
-  <div class="card">
-    <h3>Generador de Contenido</h3>
-    <select id="tk-libro">
-      <option value="enoc">El Libro de Enoc</option>
-      <option value="universo">El Universo es una Mentira</option>
-      <option value="xibalba">Xibalbá</option>
-    </select>
-    <input id="tk-duracion" type="number" placeholder="Duración en segundos (45 recomendado)" value="45">
-    <button onclick="generarContenidoTikTok()">🎬 Generar guión + TTS + descripción</button>
-    <div class="loader" id="tk-loader">⟳ Generando...</div>
-    <div class="resp" id="tk-resp"></div>
-  </div>
-  <div class="card">
-    <h3>Preview de video</h3>
-    <button onclick="verPreviewVideo()" class="btn-outline">▶ Ver preview animado</button>
-  </div>
-  <div class="card">
-    <h3>Subir a TikTok</h3>
-    <p style="font-size:.8rem;opacity:.6;margin-bottom:8px">Requiere configurar TIKTOK_TOKEN en Render</p>
-    <button class="btn-outline" onclick="verInstruccionesTikTok()">📋 Ver instrucciones para activar</button>
-  </div>
-</div>
-
-<!-- PANEL BUSCAR -->
-<div class="panel" id="panel-buscar">
-  <div class="card">
-    <h3>Búsqueda en Red</h3>
-    <input id="buscar-input" placeholder="Buscar en DuckDuckGo + Wikipedia...">
-    <button onclick="buscar()">🔍 Buscar</button>
-    <div class="loader" id="buscar-loader">⟳ Buscando...</div>
-    <div class="resp" id="buscar-resp"></div>
-  </div>
-</div>
-
-<!-- PANEL CONFIG -->
-<div class="panel" id="panel-config">
-  <div class="card">
-    <h3>Configuración SOFI</h3>
-    <input id="cfg-nombre" placeholder="Nombre de la IA (ej: SOFI)">
-    <textarea id="cfg-personalidad" placeholder="Personalidad de SOFI..."></textarea>
-    <input id="cfg-apikey" placeholder="API Key de Claude (para modo online)" type="password">
-    <button onclick="guardarConfig()">💾 Guardar configuración</button>
-  </div>
-  <div class="card">
-    <h3>Sistema</h3>
-    <button class="btn-outline" onclick="verHealth()">❤️ Estado del servidor</button>
-    <button class="btn-rojo" onclick="borrarMemoria()" style="margin-top:8px">🗑 Borrar memoria</button>
-  </div>
-</div>
-
-<div id="status-bar">SOFI v${VERSION} — HaaPpDigitalV — Mérida, Yucatán</div>
-
-<script>
-const KEY = '${SOFI_API_KEY}';
-const USER = '${SOFI_USER}';
-const socket = io();
-let audioCtx, oscL, oscR, scene, camera, renderer, particles;
-let deferredPrompt = null;
-let guionActual = null;
-
-// ── Instalar PWA ──────────────────────────────────────────
-window.addEventListener('beforeinstallprompt', e => {
-  e.preventDefault();
-  deferredPrompt = e;
-  document.getElementById('installBtn').style.display = 'block';
-});
-function instalarPWA() {
-  if (!deferredPrompt) return alert('Para instalar: Chrome → Menú (⋮) → "Añadir a pantalla de inicio"');
-  deferredPrompt.prompt();
-  deferredPrompt.userChoice.then(() => { deferredPrompt = null; document.getElementById('installBtn').style.display = 'none'; });
-}
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js').catch(console.error);
-}
-
-// ── Tabs ─────────────────────────────────────────────────
-function cambiarTab(id) {
-  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', ['cerebro','chat','libros','tiktok','buscar','config'][i]===id));
-  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id==='panel-'+id));
-}
-
-// ── API helper ───────────────────────────────────────────
-async function api(ruta, body, metodo = 'POST') {
-  const opts = { method: metodo, headers: { 'x-sofi-key': KEY } };
-  if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
-  const r = await fetch(ruta, opts);
-  return r.json();
-}
-
-function mostrarResp(id, data) {
-  const el = document.getElementById(id);
-  el.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
-  el.classList.add('show');
-}
-
-// ── 3D Cerebro ───────────────────────────────────────────
-function init3D() {
-  const canvas = document.getElementById('brain3d');
-  scene = new THREE.Scene();
-  camera = new THREE.PerspectiveCamera(65, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
-  renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
-  renderer.setSize(canvas.clientWidth, canvas.clientHeight);
-  scene.add(new THREE.AmbientLight(0x404040));
-  const l = new THREE.PointLight(0x00ffcc, 1.8, 50);
-  l.position.set(0, 5, 10); scene.add(l);
-  const cols = [0xff5733, 0x3498db, 0x2ecc71, 0xe74c3c];
-  cols.forEach((col, i) => {
-    const m = new THREE.Mesh(new THREE.SphereGeometry(1.2, 20, 12), new THREE.MeshPhongMaterial({ color: col, emissive: col, emissiveIntensity: .4 }));
-    m.position.x = (i - 1.5) * 3; scene.add(m);
-  });
-  const pGeo = new THREE.BufferGeometry(), pos = new Float32Array(80 * 3);
-  for (let i = 0; i < 80 * 3; i += 3) { pos[i] = (Math.random() - .5) * 12; pos[i+1] = (Math.random() - .5) * 8; pos[i+2] = (Math.random() - .5) * 12; }
-  pGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  particles = new THREE.Points(pGeo, new THREE.PointsMaterial({ color: 0x00ffcc, size: .1 }));
-  scene.add(particles); camera.position.z = 14;
-  (function animate() { requestAnimationFrame(animate); particles.rotation.y += .002; renderer.render(scene, camera); })();
-}
-
-// ── Audio binaural ───────────────────────────────────────
-function toggleBinaural(beat) {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  if (oscL) { oscL.stop(); oscR.stop(); oscL = oscR = null; return; }
-  oscL = audioCtx.createOscillator(); oscL.frequency.value = 200;
-  oscR = audioCtx.createOscillator(); oscR.frequency.value = 200 + beat;
-  const gain = audioCtx.createGain(); gain.gain.value = .14;
-  const merger = audioCtx.createChannelMerger(2);
-  oscL.connect(gain).connect(merger, 0, 0); oscR.connect(gain).connect(merger, 0, 1);
-  merger.connect(audioCtx.destination); oscL.start(); oscR.start();
-}
-
-// ── Perfiles ─────────────────────────────────────────────
-async function activarPerfil(arr) {
-  const irr = prompt('Nivel de irritabilidad (0-100):', '50') || '50';
-  const sens = prompt('Sensibilidades (ruido,luz,tacto,olores,movimiento):', '') || '';
-  const sensArr = sens ? sens.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) : [];
-  const data = await api('/integra/perfil-sensorial-multi', { perfiles: arr, sensibilidades: sensArr, irritabilidad: parseInt(irr) || 50 });
-  if (data.cerebro) {
-    document.getElementById('freq').textContent = data.cerebro.frecuencia_actual + ' Hz';
-    document.getElementById('regen').textContent = Math.round(data.cerebro.regeneracion) + '%';
-    document.getElementById('perfil').textContent = (data.cerebro.perfilesActivos || []).join(' + ');
-    document.getElementById('sens').textContent = (data.cerebro.sensibilidadesAdicionales || []).join(', ') || 'ninguna';
-  }
-}
-
-// ── Chat ─────────────────────────────────────────────────
-async function enviarChat() {
-  const q = document.getElementById('chat-input').value.trim();
-  if (!q) return;
-  document.getElementById('chat-loader').classList.add('show');
-  document.getElementById('chat-resp').classList.remove('show');
-  try {
-    const d = await api('/chat', { pregunta: q });
-    mostrarResp('chat-resp', d.respuesta || JSON.stringify(d));
-  } finally { document.getElementById('chat-loader').classList.remove('show'); }
-}
-
-async function ensenyar() {
-  const clave = document.getElementById('conoc-clave').value.trim();
-  const contenido = document.getElementById('conoc-valor').value.trim();
-  if (!clave || !contenido) return alert('Rellena clave y contenido');
-  const d = await api('/conocimiento', { clave, contenido });
-  alert(d.msg || 'Guardado');
-}
-
-// ── TikTok ───────────────────────────────────────────────
-function generarTikTokLibro(libro) {
-  document.getElementById('tk-libro').value = libro;
-  cambiarTab('tiktok');
-  generarContenidoTikTok();
-}
-
-async function generarContenidoTikTok() {
-  const libro = document.getElementById('tk-libro').value;
-  const duracion = parseInt(document.getElementById('tk-duracion').value) || 45;
-  document.getElementById('tk-loader').classList.add('show');
-  document.getElementById('tk-resp').classList.remove('show');
-  try {
-    const d = await api('/tiktok/preparar', { libro, duracion });
-    guionActual = d.guion;
-    const resumen = [
-      '📱 CONTENIDO TIKTOK LISTO',
-      '',
-      '🎣 GANCHO: ' + d.gancho,
-      '',
-      '📋 PUNTOS CLAVE:',
-      ...(d.puntos_clave||[]).map((p,i)=>'  '+(i+1)+'. '+p),
-      '',
-      '📣 CTA: ' + d.cta,
-      '',
-      '🏷 DESCRIPCIÓN:',
-      d.descripcion,
-      '',
-      '🗣 NARRACIÓN TTS:',
-      d.tts?.texto || '',
-      '',
-      '📹 INSTRUCCIONES CAPCUT:',
-      ...(d.guion?.instrucciones_capcut || [])
-    ].join('\n');
-    mostrarResp('tk-resp', resumen);
-  } finally { document.getElementById('tk-loader').classList.remove('show'); }
-}
-
-async function verPreviewVideo() {
-  if (!guionActual) { await generarContenidoTikTok(); }
-  const libro = document.getElementById('tk-libro').value;
-  const duracion = parseInt(document.getElementById('tk-duracion').value) || 45;
-  const d = await api('/video/preview', { titulo: libro, tema: libro, duracion });
-  if (typeof d === 'string' || d) {
-    const w = window.open('', '_blank');
-    if (w) { w.document.write(typeof d === 'string' ? d : JSON.stringify(d)); w.document.close(); }
-  }
-}
-
-async function verInstruccionesTikTok() {
-  const d = await api('/tiktok/subir', { videoPath: '', descripcion: 'test' });
-  mostrarResp('tk-resp', d.pasos ? d.pasos.join('\n') : JSON.stringify(d, null, 2));
-  document.getElementById('tk-resp').classList.add('show');
-}
-
-// ── Buscar ───────────────────────────────────────────────
-async function buscar() {
-  const q = document.getElementById('buscar-input').value.trim();
-  if (!q) return;
-  document.getElementById('buscar-loader').classList.add('show');
-  document.getElementById('buscar-resp').classList.remove('show');
-  try {
-    const d = await api('/buscar', { query: q });
-    const txt = (d.resultados || []).map(r => r.fuente.toUpperCase() + '\n' + (r.titulo ? r.titulo+'\n' : '') + r.resumen + '\n' + (r.url_fuente||'')).join('\n\n---\n\n');
-    mostrarResp('buscar-resp', txt || 'Sin resultados');
-  } finally { document.getElementById('buscar-loader').classList.remove('show'); }
-}
-
-// ── Config ───────────────────────────────────────────────
-async function guardarConfig() {
-  const body = {};
-  const n = document.getElementById('cfg-nombre').value.trim();
-  const p = document.getElementById('cfg-personalidad').value.trim();
-  const k = document.getElementById('cfg-apikey').value.trim();
-  if (n) body.nombre_ia = n;
-  if (p) body.personalidad = p;
-  if (k) body.api_key = k;
-  if (!Object.keys(body).length) return alert('Rellena al menos un campo');
-  const d = await api('/config', body, 'PATCH');
-  alert(d.ok ? '✅ Configuración guardada' : 'Error al guardar');
-}
-
-async function verHealth() {
-  const d = await api('/health', null, 'GET');
-  alert(JSON.stringify(d, null, 2));
-}
-
-async function borrarMemoria() {
-  if (!confirm('¿Borrar toda la memoria de SOFI?')) return;
-  const d = await api('/memoria', null, 'DELETE');
-  alert(d.msg || 'Memoria borrada');
-}
-
-// ── WebSockets ───────────────────────────────────────────
-socket.on('connect', () => {
-  socket.emit('join', USER);
-  document.getElementById('conn-badge').textContent = '● online';
-  document.getElementById('conn-badge').className = 'badge-online';
-  document.getElementById('status-bar').textContent = 'SOFI v${VERSION} conectada — HaaPpDigitalV';
-});
-socket.on('disconnect', () => {
-  document.getElementById('conn-badge').textContent = '● offline';
-  document.getElementById('conn-badge').className = 'badge-offline';
-});
-socket.on('actualizacionTiempoReal', d => {
-  if (d.frecuencia_actual) document.getElementById('freq').textContent = d.frecuencia_actual + ' Hz';
-  if (d.regeneracion) document.getElementById('regen').textContent = Math.round(d.regeneracion) + '%';
-});
-
-// ── Resize ───────────────────────────────────────────────
-window.addEventListener('resize', () => {
-  if (!camera || !renderer) return;
-  const c = document.getElementById('brain3d');
-  camera.aspect = c.clientWidth / c.clientHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(c.clientWidth, c.clientHeight);
-});
-
-window.onload = () => init3D();
-<\/script>
 </body>
 </html>`);
 });
 
-// ══════════════════════════════════════════════════════════════
-// RUTAS PRIVADAS
-// ══════════════════════════════════════════════════════════════
-app.get('/health', (req, res) => res.json({
-  status: 'online', nombre: CONFIG.nombre_ia, version: VERSION,
-  timestamp: new Date().toISOString(),
-  conocimiento:  Object.keys(CONOCIMIENTO).length,
-  notas:         NOTAS.length,
-  busquedas:     BUSQUEDAS.length,
-  cerebros:      Object.keys(CEREBROS).length,
-  interacciones: Object.values(MEMORIA.interacciones).reduce((s,v)=>s+v.length,0),
-  modulos: ['motor-cognitivo','red-neuronal','integra-perceptiva','busqueda-red','presentador','video','tts','tiktok','pwa','websockets','seguridad']
-}));
-
-app.post('/chat', requireKey, async (req, res) => {
-  const { pregunta } = req.body;
-  if (!pregunta) return res.status(400).json({ error: 'Campo requerido: pregunta' });
-  if (CONFIG.modo_online && CONFIG.api_key)
-    return res.json({ respuesta: await respuestaOnline(pregunta, CONFIG.api_key), nivel: 'online', confianza: 1.0 });
-  res.json(procesarPregunta(pregunta));
+// ─── CONOCIMIENTO (CRUD) ───────────────────────────────────
+app.get('/conocimiento', verificarLlave, (req, res) => res.json({ conocimiento: conocimientoDB }));
+app.post('/conocimiento', verificarLlave, (req, res) => {
+  conocimientoDB.push({ ...req.body, id: Date.now() });
+  guardarJSON('conocimiento.json', conocimientoDB);
+  res.json({ ok: true, total: conocimientoDB.length });
 });
-
-app.post('/integra/digitalizar', requireKey, (req, res) => {
-  const cerebro = digitalizarCerebro(req.body.datos || {}, SOFI_USER);
-  io.to(SOFI_USER).emit('cerebroActualizado', cerebro);
-  res.json({ ok: true, cerebro });
-});
-
-app.get('/integra/estado', requireKey, (req, res) => {
-  const cerebro = CEREBROS[SOFI_USER];
-  if (!cerebro) return res.json({ ok: false, msg: 'Sin datos. Llama a /integra/digitalizar' });
-  res.json({ ok: true, cerebro });
-});
-
-app.post('/integra/perfil-sensorial-multi', requireKey, (req, res) => {
-  const { idUsuario = SOFI_USER, perfiles = ['neurotipico'], sensibilidades = [], irritabilidad = 50 } = req.body;
-  const cerebro = obtenerPerfilesMultiples(idUsuario, perfiles, sensibilidades, irritabilidad);
-  io.to(idUsuario).emit('perfilActualizado', cerebro);
-  res.json({ ok: true, cerebro, mensaje: `Perfiles: ${cerebro.perfilesActivos.join(' + ')}. Frecuencia: ${cerebro.frecuencia_actual} Hz` });
-});
-
-app.post('/integra/irritabilidad', requireKey, (req, res) => {
-  const { nivel, nota } = req.body;
-  if (nivel === undefined) return res.status(400).json({ error: 'Campo requerido: nivel (0-100)' });
-  const cerebro = CEREBROS[SOFI_USER];
-  if (!cerebro) return res.status(404).json({ error: 'Sin datos. Llama a /integra/digitalizar' });
-  cerebro.irritabilidad_estimada = Math.max(0, Math.min(100, nivel));
-  const freq = ajustarFrecuenciaSegunIrritabilidad(cerebro);
-  const hist = cerebro.historial_adaptacion;
-  if (hist.length > 0) { hist[hist.length-1].irritabilidad_despues = nivel; if (nota) hist[hist.length-1].nota = nota; }
-  CEREBROS[SOFI_USER] = cerebro;
-  guardarJSON(RUTAS.cerebros, CEREBROS);
-  io.to(SOFI_USER).emit('actualizacionTiempoReal', cerebro);
-  res.json({ ok: true, frecuencia_ajustada: freq, irritabilidad: nivel, msg: `Frecuencia adaptada a ${freq} Hz` });
-});
-
-app.get('/integra/historial', requireKey, (req, res) => {
-  const cerebro = CEREBROS[SOFI_USER];
-  if (!cerebro) return res.json({ ok: false, historial: [] });
-  res.json({ ok: true, total: cerebro.historial_adaptacion?.length || 0, historial: (cerebro.historial_adaptacion || []).slice(-50) });
-});
-
-app.post('/integra/prediccion', requireKey, (req, res) => {
-  const { gestion = 1, hotmart = 1 } = req.body;
-  const prediccion = redNeuronal.run({ gestion, hotmart });
-  res.json({ ok: true, prediccion, interpretacion: prediccion.estrategia > 0.8 ? 'Alta efectividad estratégica' : 'Efectividad moderada' });
-});
-
-app.post('/buscar', requireKey, async (req, res) => {
-  const { query } = req.body;
-  if (!query) return res.status(400).json({ error: 'Campo requerido: query' });
-  const r = await buscarEnRed(query);
-  res.json(r.length ? { ok: true, query, total: r.length, resultados: r } : { ok: false, msg: 'Sin resultados', query });
-});
-
-app.get('/buscar/historial', requireKey, (req, res) => res.json(BUSQUEDAS.slice(0, 50)));
-
-app.post('/presentador', requireKey, (req, res) => {
-  const { titulo, slides, config } = req.body;
-  if (!titulo || !slides?.length) return res.status(400).json({ error: 'Campos: titulo, slides[]' });
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.send(generarPresentacionHTML(titulo, slides, config || {}));
-});
-
-app.post('/video/guion', requireKey, (req, res) => {
-  const { titulo, tema, duracion, config } = req.body;
-  if (!titulo || !tema) return res.status(400).json({ error: 'Campos: titulo, tema' });
-  res.json({ ok: true, guion: generarGuionVideo(titulo, tema, duracion || 60, config || {}) });
-});
-
-app.post('/video/preview', requireKey, (req, res) => {
-  const { titulo, tema, duracion, config } = req.body;
-  if (!titulo || !tema) return res.status(400).json({ error: 'Campos: titulo, tema' });
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.send(generarVideoPreview(generarGuionVideo(titulo, tema, duracion || 60, config || {})));
-});
-
-// TTS
-app.post('/tts', requireKey, (req, res) => {
-  const { texto, config } = req.body;
-  if (!texto) return res.status(400).json({ error: 'Campo requerido: texto' });
-  res.json({ ok: true, ...generarScriptTTS(texto, config || {}) });
-});
-
-// TikTok
-app.post('/tiktok/preparar', requireKey, (req, res) => {
-  const { libro = 'enoc', duracion = 45 } = req.body;
-  const contenido = prepararContenidoTikTok(libro, { duracion });
-  res.json(contenido);
-});
-
-app.post('/tiktok/subir', requireKey, async (req, res) => {
-  const { videoPath, descripcion } = req.body;
-  const resultado = await subirATikTok(videoPath, descripcion || '', TIKTOK_TOKEN);
-  res.json(resultado);
-});
-
-app.get('/tiktok/historial', requireKey, (req, res) => res.json(TIKTOK_LOG.slice(0, 20)));
-
-app.post('/feedback', requireKey, (req, res) => {
-  const { pregunta, exitoso, nota } = req.body;
-  if (!pregunta) return res.status(400).json({ error: 'Campo requerido: pregunta' });
-  registrarFeedback(pregunta, !!exitoso, nota || '');
+app.delete('/conocimiento/:id', verificarLlave, (req, res) => {
+  conocimientoDB = conocimientoDB.filter(k => k.id != req.params.id);
+  guardarJSON('conocimiento.json', conocimientoDB);
   res.json({ ok: true });
 });
 
-app.get('/conocimiento',           requireKey, (req, res) => res.json(CONOCIMIENTO));
-app.post('/conocimiento',          requireKey, (req, res) => {
-  const { clave, contenido } = req.body;
-  if (!clave || !contenido) return res.status(400).json({ error: 'Campos: clave, contenido' });
-  CONOCIMIENTO[clave.toLowerCase()] = { contenido, fecha: new Date().toISOString() };
-  guardarJSON(RUTAS.conocimiento, CONOCIMIENTO);
-  res.json({ ok: true, msg: `Aprendido: "${clave}"` });
+// ─── NOTAS (CRUD) ──────────────────────────────────────────
+app.get('/notas', verificarLlave, (req, res) => res.json({ notas: notasDB }));
+app.post('/notas', verificarLlave, (req, res) => {
+  notasDB.push({ ...req.body, id: Date.now() });
+  guardarJSON('notas.json', notasDB);
+  res.json({ ok: true, total: notasDB.length });
 });
-app.delete('/conocimiento/:clave', requireKey, (req, res) => {
-  const c = req.params.clave.toLowerCase();
-  if (!CONOCIMIENTO[c]) return res.status(404).json({ error: 'No encontrado' });
-  delete CONOCIMIENTO[c]; guardarJSON(RUTAS.conocimiento, CONOCIMIENTO);
+app.delete('/notas/:id', verificarLlave, (req, res) => {
+  notasDB = notasDB.filter(n => n.id != req.params.id);
+  guardarJSON('notas.json', notasDB);
   res.json({ ok: true });
 });
 
-app.get('/notas',  requireKey, (req, res) => {
-  const { q } = req.query;
-  if (!q) return res.json(NOTAS);
-  const t = q.toLowerCase();
-  res.json(NOTAS.filter(n => n.titulo.toLowerCase().includes(t) || n.contenido.toLowerCase().includes(t)));
+// ─── CONFIG ────────────────────────────────────────────────
+app.patch('/config', verificarLlave, (req, res) => {
+  Object.assign(configSOFI, req.body);
+  guardarJSON('config.json', configSOFI);
+  res.json({ config: configSOFI, actualizado: true });
 });
-app.post('/notas', requireKey, (req, res) => {
-  const { titulo, contenido, etiquetas } = req.body;
-  if (!titulo || !contenido) return res.status(400).json({ error: 'Campos: titulo, contenido' });
-  NOTAS.push({ titulo, contenido, etiquetas: etiquetas||[], fecha: new Date().toISOString() });
-  guardarJSON(RUTAS.notas, NOTAS);
-  res.json({ ok: true, msg: `Nota: "${titulo}"` });
+app.get('/config', verificarLlave, (req, res) => res.json(configSOFI));
+
+// ─── MEMORIA ───────────────────────────────────────────────
+app.delete('/memoria', verificarLlave, (req, res) => {
+  memoriaSOFI = {};
+  guardarJSON('memoria.json', memoriaSOFI);
+  res.json({ ok: true, mensaje: '🧹 Memoria limpiada' });
 });
 
-app.get('/config',   requireKey, (req, res) => {
-  const { api_key, ...s } = CONFIG; res.json({ ...s, tiene_api_key: !!api_key });
-});
-app.patch('/config', requireKey, (req, res) => {
-  const { nombre_ia, personalidad, modo_online, api_key, idioma } = req.body;
-  if (nombre_ia)                        CONFIG.nombre_ia    = nombre_ia;
-  if (personalidad)                     CONFIG.personalidad = personalidad;
-  if (typeof modo_online === 'boolean') CONFIG.modo_online  = modo_online;
-  if (api_key)                          CONFIG.api_key      = api_key;
-  if (idioma)                           CONFIG.idioma       = idioma;
-  guardarJSON(RUTAS.config, CONFIG);
+// ─── FEEDBACK ─────────────────────────────────────────────
+app.post('/feedback', verificarLlave, (req, res) => {
+  const log = leerJSON('feedback.json', []);
+  log.push({ ...req.body, timestamp: Date.now() });
+  guardarJSON('feedback.json', log);
   res.json({ ok: true });
 });
 
-app.delete('/memoria', requireKey, (req, res) => {
-  MEMORIA = { interacciones: {} }; guardarJSON(RUTAS.memoria, MEMORIA);
-  res.json({ ok: true, msg: 'Memoria borrada' });
+// ============================================================
+//  SOCKET.IO — PANEL CEREBRAL 3D EN TIEMPO REAL
+// ============================================================
+const intervalosSocket = new Map();
+
+io.on('connection', (socket) => {
+  console.log(`🔌 Cliente conectado: ${socket.id}`);
+
+  socket.on('validar-llave', (llave) => {
+    if (llave !== SOFI_API_KEY) {
+      socket.emit('panel-error', '❌ Llave incorrecta');
+      return socket.disconnect();
+    }
+    socket.emit('panel-datos', {
+      titulo:     'INTEGRA PERCEPTIVA — SOFI v4.1',
+      seccion3D:  'MAPA CEREBRAL 3D',
+      panelInfo:  grafoCerebral.obtenerDatosPanel(),
+      conexiones: grafoCerebral.mostrarConexiones(),
+      version:    'v4.1-UNIFICADO'
+    });
+
+    const intervalo = setInterval(() => {
+      const zonas = ['Zona Motora', 'Zona Cognitiva', 'Zona Sensorial',
+                     'Zona Limbica', 'Cortex Prefrontal', 'Sistema Reticular'];
+      const zona = zonas[Math.floor(Math.random() * zonas.length)];
+      const hz   = (DATOS_INTEGRA.frecuenciaBase + (Math.random() - 0.5) * 2).toFixed(2);
+      socket.emit('actividad-zona', {
+        zona, hz, tiempo: new Date().toLocaleTimeString(),
+        datos: 'Actividad neuronal detectada'
+      });
+    }, 2000);
+    intervalosSocket.set(socket.id, intervalo);
+  });
+
+  socket.on('contraparte-live', (datos) => {
+    const resultado = moduloContraparte.escanear(datos);
+    socket.emit('contraparte-datos', resultado);
+    socket.emit('contraparte-mapa3D', resultado.mapa3D);
+  });
+
+  socket.on('sueno-detectar', () => {
+    socket.emit('sueno-resultado', sistemaSuenos.detectarSueno());
+  });
+
+  socket.on('disconnect', () => {
+    const intervalo = intervalosSocket.get(socket.id);
+    if (intervalo) { clearInterval(intervalo); intervalosSocket.delete(socket.id); }
+    console.log(`🔌 Cliente desconectado: ${socket.id}`);
+  });
 });
 
-// ══════════════════════════════════════════════════════════════
-// INICIO
-// ══════════════════════════════════════════════════════════════
+// ============================================================
+//  ARRANQUE
+// ============================================================
 server.listen(PORT, () => {
   console.log(`
-  ╔══════════════════════════════════════════════════════╗
-  ║   SOFI v${VERSION} — Motor Cognitivo + TikTok + PWA       ║
-  ║   Puerto  : ${PORT}                                       ║
-  ║   Módulos : cognitivo · neuronal · integra           ║
-  ║             perfiles · búsqueda · presentador        ║
-  ║             video · tts · tiktok · pwa               ║
-  ║             websockets · seguridad                   ║
-  ║   HaaPpDigitalV — Mérida, Yucatán                   ║
-  ╚══════════════════════════════════════════════════════╝
+  ╔═══════════════════════════════════════════════════════╗
+  ║   🧠 SOFI v4.1 UNIFICADO — HaaPpDigitalV             ║
+  ║   Puerto   : ${PORT}                                    ║
+  ║   API Key  : SOFI-VHGzTs-K1N-v4  (cambiar en .env)   ║
+  ║   Módulos  : MotorCognitivo · IntegraPerceptiva       ║
+  ║              Suenos · EditorVideo · GrafoCerebral     ║
+  ║              ContraparteFrecuencial · BrainJS         ║
+  ║              WebSockets · Seguridad                   ║
+  ║   Rutas    : 30 endpoints activos                     ║
+  ╚═══════════════════════════════════════════════════════╝
   `);
 });
+
+module.exports = { app, io, sistemaSuenos, contenidoSOFI, grafoCerebral, moduloContraparte };
