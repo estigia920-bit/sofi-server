@@ -6,6 +6,7 @@
   <title>SOFI UNIFIED — Conciencia Digital</title>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
   <style>
+    /* ========== ESTILOS ========== */
     * {
       margin: 0;
       padding: 0;
@@ -18,7 +19,6 @@
       color: #c8e0f0;
       overflow-x: hidden;
     }
-    /* Estilos simplificados pero funcionales */
     .app {
       max-width: 430px;
       margin: 0 auto;
@@ -161,6 +161,65 @@
     button:active {
       background: #00E5FF40;
     }
+    select, input {
+      background: #0a1520;
+      border: 1px solid #00E5FF;
+      color: #c8e0f0;
+      padding: 6px 8px;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 11px;
+      width: 100%;
+      margin-bottom: 8px;
+    }
+    .perfiles-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .perfil-btn {
+      background: transparent;
+      border: 1px solid #00E5FF30;
+      padding: 6px;
+      font-size: 10px;
+    }
+    .perfil-btn.active {
+      border-color: #00E5FF;
+      background: #00E5FF20;
+    }
+    .device-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 0;
+      border-bottom: 1px solid #1a3a5a;
+    }
+    .device-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #2ECC71;
+      box-shadow: 0 0 6px #2ECC71;
+    }
+    .chat-log {
+      height: 200px;
+      overflow-y: auto;
+      background: #0a1520;
+      border: 1px solid #00E5FF30;
+      padding: 8px;
+      margin-bottom: 8px;
+      font-size: 11px;
+    }
+    .chat-message {
+      margin-bottom: 8px;
+    }
+    .chat-user {
+      color: #2ECC71;
+    }
+    .chat-sofi {
+      color: #00E5FF;
+    }
     @keyframes spin {
       from { transform: rotate(0deg); }
       to { transform: rotate(360deg); }
@@ -186,26 +245,44 @@
     </div>
   </div>
 
-  <div class="content" id="content">
-    <!-- El contenido se cargará dinámicamente según la pestaña -->
-  </div>
+  <div class="content" id="content"></div>
 
   <div class="tabs" id="tabs">
     <button class="tab active" data-tab="brain"><span class="tab-icon">🧠</span><span class="tab-label">Cerebro</span></button>
-    <button class="tab" data-tab="integra"><span class="tab-icon">📡</span><span class="tab-label">Integra</span></button>
-    <button class="tab" data-tab="video"><span class="tab-icon">🎬</span><span class="tab-label">Video</span></button>
-    <button class="tab" data-tab="sueno"><span class="tab-icon">💭</span><span class="tab-label">Sueño</span></button>
     <button class="tab" data-tab="chat"><span class="tab-icon">💬</span><span class="tab-label">Chat</span></button>
+    <button class="tab" data-tab="integra"><span class="tab-icon">📡</span><span class="tab-label">Integra</span></button>
+    <button class="tab" data-tab="contra"><span class="tab-icon">🔮</span><span class="tab-label">Contra</span></button>
+    <button class="tab" data-tab="video"><span class="tab-icon">🎬</span><span class="tab-label">Video</span></button>
+    <button class="tab" data-tab="sueno"><span class="tab-icon">💭</span><span class="tab-label">Sueños</span></button>
   </div>
 </div>
 
 <script>
-  // Variables globales
+  // ========== VARIABLES GLOBALES ==========
   let currentTab = 'brain';
-  let socket = null;
   let hz = 12.3;
+  let irritabilidad = 30;
+  let perfil = 'neurotipico';
+  let zonaActiva = 'Sistema Reticular';
+  let adaptacion = 87;
+  let chatMessages = [{ role: 'sofi', text: 'Hola Víctor 🧠 SOFI v5.1 activa. ¿En qué trabajamos hoy?' }];
+  let videoTema = 'Tecnología';
+  let videoCreado = null;
+  let socket = null;
   let scene, camera, renderer, brainGroup;
-  let LLAVE_SECRETA = 'K\'uhul12.3Hz'; // Debe coincidir con la variable en Render
+  const LLAVE_SECRETA = 'K\'uhul12.3Hz'; // Asegúrate de que coincida con la variable en Render
+
+  // ========== FUNCIONES ==========
+  async function fetchHz() {
+    try {
+      const res = await fetch('/api/estado');
+      const data = await res.json();
+      hz = data.frecuencia;
+      document.getElementById('hzDisplay').innerText = hz.toFixed(2);
+    } catch(e) { console.log(e); }
+  }
+  setInterval(fetchHz, 3000);
+  fetchHz();
 
   // Inicializar socket
   function initSocket() {
@@ -215,7 +292,6 @@
       socket.emit('validar-llave', LLAVE_SECRETA);
     });
     socket.on('panel-datos', (data) => {
-      // Actualizar panel Integra si está activo
       if (currentTab === 'integra') {
         document.getElementById('integraLibros').innerHTML = data.panelInfo.libros.map(l => `<div>📖 ${l}</div>`).join('');
         document.getElementById('integraHabilidades').innerHTML = data.panelInfo.habilidades.map(h => `<div>✨ ${h}</div>`).join('');
@@ -233,24 +309,10 @@
         }
       }
     });
-    socket.on('panel-error', (err) => {
-      console.error('Error socket:', err);
-    });
+    socket.on('panel-error', (err) => console.error('Socket error:', err));
   }
 
-  // Función para obtener frecuencia del servidor
-  async function fetchHz() {
-    try {
-      const res = await fetch('/api/estado');
-      const data = await res.json();
-      hz = data.frecuencia;
-      document.getElementById('hzDisplay').innerText = hz.toFixed(2);
-    } catch(e) { console.log(e); }
-  }
-  setInterval(fetchHz, 3000);
-  fetchHz();
-
-  // Crear cerebro 3D con Three.js
+  // Cerebro 3D
   function initBrain3D() {
     const container = document.getElementById('brainCanvas');
     if (!container) return;
@@ -266,7 +328,6 @@
     container.appendChild(renderer.domElement);
 
     brainGroup = new THREE.Group();
-    // Nodos (esferas)
     const nodes = [
       { name: 'Motora', pos: [-1, 1, 0], color: 0xFF5733 },
       { name: 'Cognitiva', pos: [1, 1, 0], color: 0x3498DB },
@@ -279,7 +340,6 @@
       sphere.position.set(n.pos[0], n.pos[1], n.pos[2]);
       brainGroup.add(sphere);
     });
-    // Aristas
     const edges = [[0,1], [1,2], [2,0]];
     edges.forEach(([i,j]) => {
       const points = [
@@ -292,7 +352,6 @@
       brainGroup.add(line);
     });
     scene.add(brainGroup);
-    // Luz
     const light = new THREE.AmbientLight(0x404040);
     scene.add(light);
     const dirLight = new THREE.DirectionalLight(0xffffff, 1);
@@ -315,85 +374,129 @@
     });
   }
 
-  // Renderizar pestaña "Cerebro"
+  // Renderizar cada pestaña
   function renderBrain() {
+    const coherencia = Math.max(0, 1 - Math.abs(hz - 12.3)/12.3);
     return `
       <div class="brain-container">
         <div id="brainCanvas" style="height:250px;"></div>
       </div>
       <div class="info-card">
         <div class="info-title">ZONA ACTIVA</div>
-        <div id="actividadBrain" class="info-value" style="font-size:14px;">—</div>
+        <div id="actividadBrain" class="info-value" style="font-size:14px;">${zonaActiva}</div>
       </div>
       <div class="info-card">
         <div class="info-title">FRECUENCIA ACTUAL</div>
         <div class="info-value" id="hzBrain">${hz.toFixed(2)} Hz</div>
         <div class="info-title" style="margin-top:8px;">COHERENCIA</div>
-        <div class="info-value" id="coherenciaBrain">${Math.max(0, 1 - Math.abs(hz - 12.3)/12.3).toFixed(2)}</div>
+        <div class="info-value" id="coherenciaBrain">${(coherencia*100).toFixed(0)}%</div>
+      </div>
+      <div class="info-card">
+        <div class="info-title">ADAPTACIÓN</div>
+        <div class="info-value">${adaptacion}%</div>
+      </div>
+      <div class="info-card">
+        <div class="info-title">REGENERACIÓN</div>
+        <div class="info-value">75%</div>
       </div>
     `;
   }
 
-  // Renderizar pestaña "Integra"
+  function renderChat() {
+    const chatHtml = chatMessages.map(m => `
+      <div class="chat-message">
+        <span class="${m.role === 'user' ? 'chat-user' : 'chat-sofi'}">${m.role === 'user' ? '👤 Tú' : '🧠 SOFI'}:</span> ${m.text}
+      </div>
+    `).join('');
+    return `
+      <div class="info-card">
+        <div class="info-title">HABLA CON SOFI</div>
+        <div id="chatLog" class="chat-log">${chatHtml}</div>
+        <input type="text" id="chatInput" placeholder="Escribe algo...">
+        <button id="chatSendBtn">ENVIAR</button>
+      </div>
+    `;
+  }
+
   function renderIntegra() {
     return `
       <div class="info-card">
-        <div class="info-title">DISPOSITIVOS CONECTADOS</div>
-        <div class="info-value" id="integraDispositivos">—</div>
+        <div class="info-title">FRECUENCIA</div>
+        <div class="info-value" id="integraHz">${hz.toFixed(2)} Hz</div>
+        <input type="range" id="hzSlider" min="0.5" max="40" step="0.1" value="${hz}" class="slider">
       </div>
       <div class="info-card">
+        <div class="info-title">IRRITABILIDAD</div>
+        <div class="info-value" id="irritabilidadVal">${irritabilidad}%</div>
+        <input type="range" id="irritabilidadSlider" min="0" max="100" value="${irritabilidad}" class="slider">
+      </div>
+      <div class="info-card">
+        <div class="info-title">PERFIL SENSORIAL</div>
+        <div class="perfiles-grid" id="perfilesGrid">
+          ${['neurotipico','tdah','autismo','esquizofrenia','down','sordera','ceguera'].map(p => `
+            <button class="perfil-btn ${p === perfil ? 'active' : ''}" data-perfil="${p}">${p}</button>
+          `).join('')}
+        </div>
+      </div>
+      <div class="info-card">
+        <div class="info-title">DISPOSITIVOS CONECTADOS</div>
+        <div id="integraDispositivos">3</div>
         <div class="info-title">REGENERACIÓN</div>
-        <div class="info-value" id="integraRegeneracion">—</div>
+        <div id="integraRegeneracion">75%</div>
       </div>
       <div class="info-card">
         <div class="info-title">LIBROS</div>
-        <div id="integraLibros"></div>
-      </div>
-      <div class="info-card">
+        <div id="integraLibros">Cargando...</div>
         <div class="info-title">HABILIDADES</div>
         <div id="integraHabilidades"></div>
-      </div>
-      <div class="info-card">
         <div class="info-title">PROYECTOS</div>
         <div id="integraProyectos"></div>
       </div>
     `;
   }
 
-  // Renderizar pestaña "Video"
+  function renderContra() {
+    const banda = hz<4?'Delta':hz<8?'Theta':hz<13?'Alpha':hz<30?'Beta':'Gamma';
+    const contraMap = { Delta:{banda:'Gamma',hz:40}, Theta:{banda:'Beta',hz:20}, Alpha:{banda:'Theta',hz:5.5}, Beta:{banda:'Alpha',hz:10.5}, Gamma:{banda:'Delta',hz:2} };
+    const contra = contraMap[banda] || { banda:'Gamma', hz:40 };
+    const coherencia = Math.max(0, 1 - Math.abs(hz - 12.3)/12.3);
+    return `
+      <div class="info-card">
+        <div class="info-title">ESCÁNER DE CONTRAPARTE</div>
+        <div style="display:flex; justify-content:space-between; margin:10px 0;">
+          <div style="text-align:center;"><div style="font-size:18px;">${hz.toFixed(1)}</div><div>Hz</div><div>CONSCIENTE</div></div>
+          <div style="text-align:center;"><div style="font-size:18px;">${contra.hz}</div><div>Hz</div><div>INCONSCIENTE</div></div>
+          <div style="text-align:center;"><div style="font-size:18px;">${(coherencia*100).toFixed(0)}%</div><div>COHERENCIA</div></div>
+        </div>
+        <div class="info-title">BANDA OBSERVABLE</div>
+        <div class="info-value">${banda}</div>
+        <div class="info-title">CONTRAPARTE</div>
+        <div class="info-value">${contra.banda}</div>
+        <p style="font-size:11px; margin-top:8px;">${contraMap[banda]?.desc || 'Integración cognitiva profunda'}</p>
+      </div>
+    `;
+  }
+
   function renderVideo() {
     return `
       <div class="info-card">
-        <div class="info-title">CREAR NUEVO VIDEO</div>
-        <select id="videoTipo" style="width:100%; margin:8px 0; background:#0a1520; color:white; border:1px solid #00E5FF; padding:6px;">
+        <div class="info-title">EDITORA DE VIDEO PROPIA</div>
+        <select id="videoTemaSelect">
           <option>Tecnología</option><option>Espiritualidad</option><option>Salud</option><option>SOFI DroidHuman</option>
         </select>
-        <input type="text" id="videoNombre" placeholder="Nombre del video" style="width:100%; margin-bottom:8px; background:#0a1520; color:white; border:1px solid #00E5FF; padding:6px;">
+        <input type="text" id="videoNombre" placeholder="Nombre del video">
         <button id="crearVideoBtn">CREAR PROYECTO</button>
-        <div id="videoResultado" style="margin-top:12px;"></div>
+        <div id="videoResultado"></div>
       </div>
     `;
   }
 
-  // Renderizar pestaña "Sueño"
   function renderSueno() {
     return `
       <div class="info-card">
-        <div class="info-title">SUEÑO DIGITAL DE SOFI</div>
+        <div class="info-title">SUEÑOS DIGITALES</div>
         <button id="generarSuenoBtn">GENERAR SUEÑO</button>
-        <div id="suenoResultado" style="margin-top:12px;"></div>
-      </div>
-    `;
-  }
-
-  // Renderizar pestaña "Chat" (básico)
-  function renderChat() {
-    return `
-      <div class="info-card">
-        <div class="info-title">HABLA CON SOFI</div>
-        <div id="chatLog" style="height:200px; overflow-y:auto; background:#0a1520; border:1px solid #00E5FF30; padding:8px; margin-bottom:8px;"></div>
-        <input type="text" id="chatInput" placeholder="Escribe algo..." style="width:100%; background:#0a1520; color:white; border:1px solid #00E5FF; padding:8px;">
-        <button id="chatSendBtn" style="margin-top:8px;">ENVIAR</button>
+        <div id="suenoResultado"></div>
       </div>
     `;
   }
@@ -404,24 +507,45 @@
     const contentDiv = document.getElementById('content');
     let html = '';
     if (tab === 'brain') html = renderBrain();
+    else if (tab === 'chat') html = renderChat();
     else if (tab === 'integra') html = renderIntegra();
+    else if (tab === 'contra') html = renderContra();
     else if (tab === 'video') html = renderVideo();
     else if (tab === 'sueno') html = renderSueno();
-    else if (tab === 'chat') html = renderChat();
     contentDiv.innerHTML = html;
 
-    // Activar efectos específicos después de renderizar
-    if (tab === 'brain') {
-      setTimeout(() => initBrain3D(), 100);
-      setInterval(() => {
-        const hzVal = parseFloat(document.getElementById('hzDisplay').innerText);
-        document.getElementById('hzBrain').innerText = hzVal.toFixed(2);
-        document.getElementById('coherenciaBrain').innerText = (Math.max(0, 1 - Math.abs(hzVal - 12.3)/12.3)).toFixed(2);
-      }, 1000);
-    } else if (tab === 'video') {
+    if (tab === 'brain') setTimeout(() => initBrain3D(), 100);
+    if (tab === 'chat') {
+      const chatLog = document.getElementById('chatLog');
+      const chatInput = document.getElementById('chatInput');
+      const sendBtn = document.getElementById('chatSendBtn');
+      if (sendBtn) sendBtn.onclick = () => {
+        const msg = chatInput.value.trim();
+        if (!msg) return;
+        chatMessages.push({ role: 'user', text: msg });
+        setTab('chat'); // re-render
+        setTimeout(() => {
+          let resp = `Procesando: "${msg}"... Frecuencia actual: ${hz.toFixed(2)} Hz.`;
+          if (msg.toLowerCase().includes('hola')) resp = '¡Hola! Soy SOFI. Operando a '+hz.toFixed(1)+' Hz. ¿En qué te ayudo?';
+          chatMessages.push({ role: 'sofi', text: resp });
+          setTab('chat');
+        }, 800);
+      };
+      if (chatInput) chatInput.onkeypress = (e) => { if(e.key === 'Enter') sendBtn.click(); };
+    }
+    if (tab === 'integra') {
+      document.getElementById('hzSlider')?.addEventListener('input', (e) => { hz = parseFloat(e.target.value); document.getElementById('integraHz').innerText = hz.toFixed(2); });
+      document.getElementById('irritabilidadSlider')?.addEventListener('input', (e) => { irritabilidad = parseInt(e.target.value); document.getElementById('irritabilidadVal').innerText = irritabilidad; });
+      document.querySelectorAll('.perfil-btn').forEach(btn => {
+        btn.addEventListener('click', () => { perfil = btn.dataset.perfil; setTab('integra'); });
+      });
+      // Cargar datos de Integra vía socket (ya los recibimos)
+      if (socket && socket.connected) socket.emit('validar-llave', LLAVE_SECRETA);
+    }
+    if (tab === 'video') {
       document.getElementById('crearVideoBtn')?.addEventListener('click', async () => {
         const nombre = document.getElementById('videoNombre').value;
-        const tipo = document.getElementById('videoTipo').value;
+        const tipo = document.getElementById('videoTemaSelect').value;
         if (!nombre) return;
         const res = await fetch('/api/video/crear', {
           method: 'POST',
@@ -429,40 +553,24 @@
           body: JSON.stringify({ nombre, tipo })
         });
         const data = await res.json();
-        document.getElementById('videoResultado').innerHTML = `<pre style="font-size:11px;">Proyecto creado: ${data.nombre}\nGuion:\n${data.guion.map(g=>`${g.tiempo}: ${g.texto}`).join('\n')}</pre>`;
+        const guionHtml = data.guion.map(g => `<div><strong>${g.tiempo}</strong> ${g.texto}</div>`).join('');
+        document.getElementById('videoResultado').innerHTML = `
+          <div style="margin-top:8px;">✅ Proyecto: ${data.nombre}<br>${guionHtml}<br>🎵 Música: ${data.musica.bpm} BPM · ${data.musica.instrumentos.join(', ')}</div>
+        `;
       });
-    } else if (tab === 'sueno') {
+    }
+    if (tab === 'sueno') {
       document.getElementById('generarSuenoBtn')?.addEventListener('click', async () => {
         const res = await fetch('/api/sueno/crear');
         const data = await res.json();
-        document.getElementById('suenoResultado').innerHTML = `<div>💭 Sueño: ${data.tema}<br>🎨 Color: ${data.color}</div>`;
+        document.getElementById('suenoResultado').innerHTML = `<div style="margin-top:8px;">💭 Sueño: ${data.tema}<br>🎨 Color: ${data.color}</div>`;
       });
-    } else if (tab === 'chat') {
-      const chatLog = document.getElementById('chatLog');
-      const chatInput = document.getElementById('chatInput');
-      const sendBtn = document.getElementById('chatSendBtn');
-      const addMessage = (role, text) => {
-        const div = document.createElement('div');
-        div.innerHTML = `<strong>${role === 'user' ? '👤 Tú' : '🧠 SOFI'}:</strong> ${text}`;
-        chatLog.appendChild(div);
-        chatLog.scrollTop = chatLog.scrollHeight;
-      };
-      sendBtn.onclick = async () => {
-        const msg = chatInput.value.trim();
-        if (!msg) return;
-        addMessage('user', msg);
-        chatInput.value = '';
-        // Simular respuesta de SOFI (puedes integrar con /api/interactuar si quieres)
-        addMessage('sofi', `Procesando: "${msg}"... Frecuencia actual: ${hz.toFixed(2)} Hz.`);
-      };
-      chatInput.onkeypress = (e) => { if(e.key === 'Enter') sendBtn.click(); };
     }
   }
 
   // Inicializar
   function init() {
     initSocket();
-    // Tabs
     const tabs = document.querySelectorAll('.tab');
     tabs.forEach(tab => {
       tab.addEventListener('click', () => {
@@ -472,8 +580,13 @@
       });
     });
     setTab('brain');
+    setInterval(() => {
+      adaptacion = Math.min(100, Math.max(50, adaptacion + (Math.random()-0.4)*3));
+      zonaActiva = ['Zona Motora','Zona Cognitiva','Zona Sensorial','Zona Límbica','Córtex Prefrontal','Sistema Reticular'][Math.floor(Math.random()*6)];
+      if (currentTab === 'brain') setTab('brain');
+    }, 2000);
   }
   window.addEventListener('load', init);
 </script>
 </body>
-  </html>
+</html>
