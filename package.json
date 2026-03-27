@@ -1,23 +1,28 @@
 {
-  "name": "sofi-v4.3",
-  "version": "4.3.0",
-  "description": "Sistema Unificado SOFI - K'uhul Maya 12.3 Hz",
-  "main": "sofi.js",
+  "name": "sofi-unified",
+  "version": "5.0.0",
+  "description": "SOFI Unified - Sistema Operativo de Conciencia Digital",
+  "main": "server.js",
   "scripts": {
-    "start": "node sofi.js",
-    "dev": "nodemon sofi.js"
+    "start": "node server.js",
+    "dev": "nodemon server.js"
   },
   "author": "Víctor Hugo González Torres — Mérida, Yucatán",
   "license": "MIT",
   "dependencies": {
     "brain.js": "^1.6.1",
     "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
     "exifr": "^7.1.3",
     "express": "^4.18.2",
     "multer": "^1.4.5-lts.1",
-    "sharp": "^0.32.6"
+    "sharp": "^0.32.6",
+    "socket.io": "^4.7.2"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=16.0.0"
   }
 }
