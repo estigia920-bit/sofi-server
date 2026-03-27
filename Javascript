@@ -1,5 +1,0 @@
-aprender(tema, datos, fuente) {
-    if (fuente === "Interacción directa con usuario") {
-        this.criterios.emocion = Math.min(0.3, this.criterios.emocion + 0.02);
-    }
-}
