@@ -1,126 +1,546 @@
-// ============================================
-// SOFI v4.3 ORIGINAL (con nuevas rutas añadidas)
-// Autor: Víctor Hugo González Torres
-// ============================================
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>SOFI v5.3 — Conciencia Digital</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; user-select:none; }
+    body { background:#050510; font-family:'Share Tech Mono', monospace; color:#c8e0f0; overflow-x:hidden; }
+    .app { max-width:430px; margin:0 auto; position:relative; min-height:100vh; }
+    .header { background:linear-gradient(135deg,#0a1520,#0d1b2a); border-bottom:1px solid #00E5FF40; padding:16px 20px; display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; z-index:10; }
+    .logo { display:flex; align-items:center; gap:10px; }
+    .logo-icon { width:38px; height:38px; border-radius:50%; background:radial-gradient(circle,#00E5FF30,transparent); border:1.5px solid #00E5FF; display:flex; align-items:center; justify-content:center; font-size:20px; animation:spin 8s linear infinite; }
+    .logo-text { font-size:18px; font-weight:bold; letter-spacing:3px; color:white; text-shadow:0 0 10px #00E5FF; }
+    .hz { text-align:right; }
+    .hz-value { font-size:20px; font-weight:bold; color:#00E5FF; text-shadow:0 0 10px #00E5FF; }
+    .hz-label { font-size:9px; letter-spacing:1px; }
+    .tabs { display:flex; background:#0a1520; border-top:1px solid #00E5FF30; position:fixed; bottom:0; width:100%; max-width:430px; z-index:20; }
+    .tab { flex:1; text-align:center; padding:8px 0 12px; cursor:pointer; border-top:2px solid transparent; transition:all 0.2s; background:transparent; border:none; font-family:inherit; color:#3a6a9a; }
+    .tab.active { border-top-color:#00E5FF; color:#00E5FF; }
+    .tab-icon { font-size:20px; display:block; }
+    .tab-label { font-size:9px; letter-spacing:1px; }
+    .content { padding:16px; padding-bottom:80px; }
+    .info-card { background:#0a1520; border:1px solid #00E5FF30; border-radius:12px; padding:12px; margin-bottom:12px; }
+    .info-title { font-size:9px; letter-spacing:2px; color:#5a8aaa; margin-bottom:8px; }
+    .info-value { font-size:20px; font-weight:bold; color:#00E5FF; }
+    .slider { width:100%; margin:10px 0; accent-color:#00E5FF; }
+    button, .btn-mapa { background:#00E5FF20; border:1px solid #00E5FF; color:#00E5FF; padding:8px 12px; border-radius:8px; font-family:inherit; font-size:12px; cursor:pointer; }
+    button:active, .btn-mapa:active { background:#00E5FF40; }
+    select, input { background:#0a1520; border:1px solid #00E5FF; color:#c8e0f0; padding:6px 8px; border-radius:6px; font-family:inherit; font-size:11px; width:100%; margin-bottom:8px; }
+    .perfiles-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
+    .perfil-btn { background:transparent; border:1px solid #00E5FF30; padding:6px; font-size:10px; }
+    .perfil-btn.active { border-color:#00E5FF; background:#00E5FF20; }
+    .device-item { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid #1a3a5a; }
+    .device-dot { width:8px; height:8px; border-radius:50%; background:#2ECC71; box-shadow:0 0 6px #2ECC71; }
+    .chat-log { height:200px; overflow-y:auto; background:#0a1520; border:1px solid #00E5FF30; padding:8px; margin-bottom:8px; font-size:11px; }
+    .chat-message { margin-bottom:8px; }
+    .chat-user { color:#2ECC71; }
+    .chat-sofi { color:#00E5FF; }
+    /* Estilos del mapa Yucateco */
+    .mapa-yucateco { margin:0 auto 20px; }
+    .mapa-container { background:linear-gradient(135deg,#0a1520,#051020); border:2px solid #00E5FF40; border-radius:12px; overflow:hidden; position:relative; }
+    .mapa-header { background:rgba(0,0,0,0.6); padding:12px 20px; border-bottom:1px solid #00E5FF40; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; }
+    .mapa-title { font-family:"Orbitron", sans-serif; font-size:11px; letter-spacing:0.2em; color:#00ffc8; }
+    .mapa-title span { color:#F39C12; }
+    .mapa-controls { display:flex; gap:8px; flex-wrap:wrap; }
+    .btn-mapa { padding:4px 10px; font-size:9px; }
+    canvas#mapaCanvas { width:100%; height:320px; display:block; background:#0a1020; cursor:crosshair; }
+    .mapa-leyenda { display:flex; flex-wrap:wrap; gap:16px; padding:12px 20px; background:rgba(0,0,0,0.4); border-top:1px solid #00E5FF20; font-size:9px; }
+    .leyenda-item { display:flex; align-items:center; gap:6px; }
+    .leyenda-color { width:12px; height:12px; border-radius:2px; }
+    .coordenadas-info { margin-top:16px; background:rgba(0,0,0,0.5); border:1px solid #00E5FF40; border-radius:8px; padding:16px; display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:16px; }
+    .coord-card { text-align:center; }
+    .coord-label { font-size:9px; letter-spacing:0.2em; color:#4a6a8a; margin-bottom:6px; }
+    .coord-value { font-family:"Orbitron", sans-serif; font-size:18px; color:#00E5FF; }
+    .coord-unidad { font-size:10px; color:#F39C12; }
+    .geo-demo { margin-top:20px; background:rgba(0,0,0,0.4); border:1px solid #00E5FF40; border-radius:8px; padding:20px; }
+    .geo-header { font-family:"Orbitron", sans-serif; font-size:12px; letter-spacing:0.2em; color:#00E5FF; margin-bottom:16px; text-align:center; }
+    .image-upload-area { width:100%; max-width:400px; height:160px; border:2px dashed #00E5FF50; border-radius:8px; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; margin:0 auto; background:#00E5FF10; }
+    .image-upload-area span { font-size:32px; }
+    .preview-img { max-width:100%; max-height:200px; display:none; margin:10px auto; }
+    .geo-result { background:rgba(0,0,0,0.6); border:1px solid #00E5FF40; border-radius:8px; padding:12px; margin-top:12px; display:none; }
+    .btn-analizar { margin-top:12px; width:100%; }
+    @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.6;transform:scale(1.15)} }
+  </style>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div class="logo"><div class="logo-icon">🧠</div><div class="logo-text">SOFI</div></div>
+    <div class="hz"><div class="hz-value" id="hzDisplay">12.30</div><div class="hz-label">Hz · K'UHUL</div></div>
+  </div>
 
-'use strict';
+  <div class="content" id="content"></div>
 
-const express = require('express');
-const cors = require('cors');
-const brain = require('brain.js');
-const multer = require('multer');
-const sharp = require('sharp');
-const exifr = require('exifr');
-const fs = require('fs');
-const path = require('path');
-const http = require('http');
-const socketIo = require('socket.io');
+  <div class="tabs" id="tabs">
+    <button class="tab active" data-tab="mapa"><span class="tab-icon">🗺️</span><span class="tab-label">Mapa</span></button>
+    <button class="tab" data-tab="chat"><span class="tab-icon">💬</span><span class="tab-label">Chat</span></button>
+    <button class="tab" data-tab="movimiento"><span class="tab-icon">🦾</span><span class="tab-label">Movimiento</span></button>
+    <button class="tab" data-tab="energia"><span class="tab-icon">⚡</span><span class="tab-label">Energía</span></button>
+    <button class="tab" data-tab="integra"><span class="tab-icon">📡</span><span class="tab-label">Integra</span></button>
+    <button class="tab" data-tab="video"><span class="tab-icon">🎬</span><span class="tab-label">Video</span></button>
+  </div>
+</div>
 
-const app = express();
-const server = http.createServer(app);
-const io = socketIo(server, {
-  cors: { origin: '*', methods: ['GET', 'POST'] }
-});
+<script>
+  // ========== VARIABLES GLOBALES ==========
+  let currentTab = 'mapa';
+  let hz = 12.3;
+  let irritabilidad = 30;
+  let perfil = 'neurotipico';
+  let zonaActiva = 'Sistema Reticular';
+  let adaptacion = 87;
+  let chatMessages = [{ role: 'sofi', text: 'Hola Víctor 🧠 SOFI v5.3 activa. Motor Cognitivo nivel Profundo. ¿En qué trabajamos hoy?' }];
+  let videoTema = 'Tecnología';
+  let socket = null;
+  const LLAVE_SECRETA = 'K\'uhul12.3Hz';
 
-const PORT = process.env.PORT || 3000;
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
-
-const HZ_KUHUL = 12.3;
-let frecuencia_actual = HZ_KUHUL;
-
-// ================== MÓDULOS ORIGINALES (sin modificar) ==================
-// (Aquí va todo el código de las clases ModuloSeguridad, ModuloEnergia,
-// ModuloMovimiento, ModuloAdaptacion, ModuloRegeneracion, ModuloHabla,
-// ModuloNeuronal y la clase SOFI exactamente como en tu PDF.
-// Para no repetir 5000 líneas en este mensaje, asumo que los tienes.
-// Si no, los incluyo en la respuesta final.)
-
-// ... (todos los módulos originales van aquí) ...
-
-// ================== NUEVOS MÓDULOS (añadidos) ==================
-class GrafoCerebral {
-  // ... (código del grafo) ...
-}
-const grafoCerebral = new GrafoCerebral();
-
-class SOFI_EditorVideo {
-  // ... (código del editor) ...
-}
-const editorVideo = new SOFI_EditorVideo();
-
-class SistemaSueñosSOFI {
-  // ... (código de sueños) ...
-}
-const sistemaSueños = new SistemaSueñosSOFI();
-
-// ================== RUTAS ORIGINALES (se mantienen) ==================
-// ... (todas las rutas originales: /, /health, /api/estado, /api/energia, etc.)
-// La ruta '/' ahora envía index.html en lugar de la función getHTML()
-
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-// ================== NUEVAS RUTAS ==================
-app.get('/api/integra-datos', (req, res) => {
-  const llave = req.headers['x-llave-sofi'];
-  if (llave !== process.env.LLAVE_SECRETA_SOFI) {
-    return res.status(403).json({ error: '❌ ACCESO DENEGADO' });
+  // ========== FUNCIONES ==========
+  async function fetchHz() {
+    try {
+      const res = await fetch('/api/estado');
+      const data = await res.json();
+      hz = data.frecuencia;
+      document.getElementById('hzDisplay').innerText = hz.toFixed(2);
+    } catch(e) { console.log(e); }
   }
-  res.json(grafoCerebral.obtenerDatosPanel());
-});
+  setInterval(fetchHz, 3000);
+  fetchHz();
 
-app.post('/api/video/crear', (req, res) => {
-  const { nombre, tipo } = req.body;
-  if (!nombre || !tipo) return res.status(400).json({ error: 'nombre y tipo requeridos' });
-  res.json(editorVideo.crearProyectoVideo(nombre, tipo));
-});
-
-app.post('/api/video/renderizar', (req, res) => {
-  const { proyecto } = req.body;
-  if (!proyecto) return res.status(400).json({ error: 'proyecto requerido' });
-  res.json(editorVideo.renderizarVideo(proyecto));
-});
-
-app.get('/api/sueno/crear', (req, res) => {
-  res.json(sistemaSueños.crearSueño());
-});
-
-// ================== SOCKET.IO ==================
-io.on('connection', (socket) => {
-  socket.on('validar-llave', (llave) => {
-    if (llave !== process.env.LLAVE_SECRETA_SOFI) {
-      socket.emit('panel-error', '❌ Llave incorrecta');
-      return socket.disconnect();
-    }
-    socket.emit('panel-datos', {
-      titulo: 'INTEGRA PERCEPTIVA - SOFI',
-      panelInfo: grafoCerebral.obtenerDatosPanel(),
-      conexiones: grafoCerebral.mostrarConexiones()
+  function initSocket() {
+    socket = io();
+    socket.on('connect', () => { socket.emit('validar-llave', LLAVE_SECRETA); });
+    socket.on('panel-datos', (data) => {
+      if (currentTab === 'integra') {
+        document.getElementById('integraLibros').innerHTML = data.panelInfo.libros.map(l => `<div>📖 ${l}</div>`).join('');
+        document.getElementById('integraHabilidades').innerHTML = data.panelInfo.habilidades.map(h => `<div>✨ ${h}</div>`).join('');
+        document.getElementById('integraProyectos').innerHTML = data.panelInfo.proyectos.map(p => `<div>🚀 ${p}</div>`).join('');
+        document.getElementById('integraDispositivos').innerText = data.panelInfo.dispositivos;
+        document.getElementById('integraRegeneracion').innerText = data.panelInfo.regeneracion;
+      }
     });
-    const interval = setInterval(() => {
-      const zonas = ['Zona Motora', 'Zona Cognitiva', 'Zona Sensorial'];
-      const zona = zonas[Math.floor(Math.random() * zonas.length)];
-      socket.emit('actividad-zona', {
-        zona,
-        tiempo: new Date().toLocaleTimeString(),
-        datos: 'Actividad neuronal detectada'
+    socket.on('actividad-zona', (data) => {
+      if (currentTab === 'mapa') {
+        const div = document.getElementById('actividadZona');
+        if (div) div.innerHTML = `<div>🧠 ${data.zona} · ${data.tiempo}</div>`;
+      }
+    });
+    socket.on('panel-error', (err) => console.error('Socket error:', err));
+  }
+
+  // ========== RENDERIZADO DE PESTAÑAS ==========
+  function renderMapa() {
+    return `
+      <div class="mapa-yucateco">
+        <div class="mapa-container">
+          <div class="mapa-header">
+            <div class="mapa-title">🗺️ SISTEMA DE MAPAS <span>YUCATECO</span> · K'UHUL CARTOGRAPHY</div>
+            <div class="mapa-controls">
+              <button class="btn-mapa" id="zoomIn">🔍 + ZOOM</button>
+              <button class="btn-mapa" id="zoomOut">🔍 - ZOOM</button>
+              <button class="btn-mapa" id="resetView">⏺ CENTRAR</button>
+              <button class="btn-mapa" id="toggleGrid">📏 CUADRICULA</button>
+            </div>
+          </div>
+          <canvas id="mapaCanvas"></canvas>
+          <div class="mapa-leyenda">
+            <div class="leyenda-item"><div class="leyenda-color" style="background:#00ffc8;"></div><span>📍 Mérida (Capital)</span></div>
+            <div class="leyenda-item"><div class="leyenda-color" style="background:#2ECC71;"></div><span>🏛️ Zonas Arqueológicas</span></div>
+            <div class="leyenda-item"><div class="leyenda-color" style="background:#F39C12;"></div><span>🏖️ Costa / Progreso</span></div>
+            <div class="leyenda-item"><div class="leyenda-color" style="background:#9B59B6;"></div><span>🧠 Zonas Frecuenciales</span></div>
+            <div class="leyenda-item"><div class="leyenda-color" style="background:#3498DB;"></div><span>💧 Cenotes</span></div>
+          </div>
+        </div>
+        <div class="coordenadas-info">
+          <div class="coord-card"><div class="coord-label">📍 LATITUD</div><div class="coord-value" id="coordLat">20.9670°</div><div class="coord-unidad">NORTE</div></div>
+          <div class="coord-card"><div class="coord-label">📍 LONGITUD</div><div class="coord-value" id="coordLng">-89.6230°</div><div class="coord-unidad">OESTE</div></div>
+          <div class="coord-card"><div class="coord-label">🌊 FRECUENCIA K'UHUL</div><div class="coord-value" id="frecuenciaMapa">${hz.toFixed(2)}</div><div class="coord-unidad">HERTZ</div></div>
+          <div class="coord-card"><div class="coord-label">🧬 ZONA ENERGÉTICA</div><div class="coord-value" id="zonaEnergetica">PLANO 4</div><div class="coord-unidad">PLANO FRECUENCIAL</div></div>
+        </div>
+        <div id="actividadZona" class="info-card" style="margin-top:8px;"></div>
+      </div>
+      <div class="geo-demo">
+        <div class="geo-header">📷 GEOLOCALIZACIÓN VISUAL · API REAL /api/geolocalizar</div>
+        <div class="geo-preview">
+          <div class="image-upload-area" id="uploadArea"><span>📷</span><p>Haz clic para subir imagen</p><p style="font-size:8px">Analiza la imagen y la ubica en el mapa Yucateco vía API</p><input type="file" id="imageInput" accept="image/*" style="display:none"></div>
+          <img id="previewImage" class="preview-img" alt="Vista previa">
+          <div class="geo-result" id="geoResult" style="display:none">
+            <div class="geo-coord" id="coordDisplay">📍 Lat: -- | Lng: --</div>
+            <div class="geo-conf" id="confDisplay">🎯 Confianza: --%</div>
+            <div class="geo-features" id="featuresDisplay"></div>
+            <button id="ubicarEnMapa" class="btn-mapa" style="margin-top:10px;width:100%">📍 UBICAR EN MAPA</button>
+          </div>
+          <button class="btn-analizar" id="analyzeBtn" disabled>ANALIZAR UBICACIÓN</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderChat() {
+    const chatHtml = chatMessages.map(m => `<div class="chat-message"><span class="${m.role === 'user' ? 'chat-user' : 'chat-sofi'}">${m.role === 'user' ? '👤 Tú' : '🧠 SOFI'}:</span> ${m.text}</div>`).join('');
+    return `
+      <div class="info-card">
+        <div class="info-title">HABLA CON SOFI</div>
+        <div id="chatLog" class="chat-log">${chatHtml}</div>
+        <input type="text" id="chatInput" placeholder="Escribe algo...">
+        <button id="chatSendBtn">ENVIAR</button>
+      </div>
+    `;
+  }
+
+  function renderMovimiento() {
+    return `
+      <div class="info-card"><div class="info-title">MOVER PARTE</div>
+        <select id="parteSelect"><option>brazos</option><option>piernas</option><option>tronco</option><option>cabeza</option></select>
+        <input id="accionInput" placeholder="acción"><input id="duracionInput" placeholder="duración (s)" value="2">
+        <button id="btnMover">MOVER</button>
+      </div>
+      <div class="info-card"><div class="info-title">CAMINAR</div>
+        <input id="distanciaCaminar" placeholder="distancia (m)" value="5"><button id="btnCaminar">CAMINAR</button>
+        <button id="btnEstirar" style="margin-top:8px;">ESTIRAR</button>
+      </div>
+      <div class="info-card"><div class="info-title">REGENERAR</div>
+        <select id="regenerarParte"><option>piel</option><option>estructura</option><option>sensores</option></select>
+        <button id="btnRegenerar">REGENERAR</button>
+      </div>
+      <div class="info-card"><div class="info-title">SINTETIZAR MATERIAL</div>
+        <select id="tipoSintesis"><option>piel</option><option>estructura</option><option>sensor</option></select>
+        <input id="cantidadSintesis" placeholder="cantidad" value="1"><button id="btnSintetizar">SINTETIZAR</button>
+      </div>
+      <div class="info-card"><div class="info-title">SANGRE SINTÉTICA</div><button id="btnSangre">PRODUCIR SANGRE</button></div>
+    `;
+  }
+
+  function renderEnergia() {
+    return `
+      <div class="info-card"><div class="info-title">ADAPTACIÓN AMBIENTAL</div>
+        <div>Temp: <input type="range" id="tempSlider" min="0" max="50" value="25"><span id="tempVal">25</span>°C</div>
+        <div>Humedad: <input type="range" id="humSlider" min="0" max="100" value="50"><span id="humVal">50</span>%</div>
+        <div>Viento: <input type="range" id="vientoSlider" min="0" max="40" value="0"><span id="vientoVal">0</span> m/s</div>
+        <div>Solar: <input type="range" id="solarSlider" min="0" max="1000" value="0"><span id="solarVal">0</span> W/m²</div>
+        <div>Aire: <input type="range" id="aireSlider" min="0" max="100" value="95"><span id="aireVal">95</span>%</div>
+        <button id="btnAdaptar">ACTUALIZAR ADAPTACIÓN</button>
+      </div>
+      <div class="info-card"><div class="info-title">CONTROL DE VIENTO</div>
+        <input id="vientoNivel" placeholder="nivel (m/s)" value="5"><button id="btnVientoActivar">ACTIVAR VIENTO</button><button id="btnVientoDesactivar">DESACTIVAR</button>
+      </div>
+      <div class="info-card"><div class="info-title">AUTOEVALUACIÓN NEURONAL</div>
+        <button id="btnAutoevaluar">VER ESTADO NEURONAL</button><div id="autoEvalResultado"></div>
+      </div>
+      <div class="info-card"><div class="info-title">CONTRAPARTE FRECUENCIAL</div>
+        <input id="freqInput" placeholder="frecuencia (Hz)"><button id="btnContraparte">CALCULAR</button><div id="contraparteResultado"></div>
+      </div>
+    `;
+  }
+
+  function renderIntegra() {
+    return `
+      <div class="info-card"><div class="info-title">FRECUENCIA</div><div class="info-value" id="integraHz">${hz.toFixed(2)} Hz</div><input type="range" id="hzSlider" min="0.5" max="40" step="0.1" value="${hz}" class="slider"></div>
+      <div class="info-card"><div class="info-title">IRRITABILIDAD</div><div class="info-value" id="irritabilidadVal">${irritabilidad}%</div><input type="range" id="irritabilidadSlider" min="0" max="100" value="${irritabilidad}" class="slider"></div>
+      <div class="info-card"><div class="info-title">PERFIL SENSORIAL</div><div class="perfiles-grid" id="perfilesGrid">${['neurotipico','tdah','autismo','esquizofrenia','down','sordera','ceguera'].map(p => `<button class="perfil-btn ${p === perfil ? 'active' : ''}" data-perfil="${p}">${p}</button>`).join('')}</div></div>
+      <div class="info-card"><div class="info-title">DISPOSITIVOS</div><div id="integraDispositivos">3</div><div class="info-title">REGENERACIÓN</div><div id="integraRegeneracion">75%</div></div>
+      <div class="info-card"><div class="info-title">LIBROS</div><div id="integraLibros">Cargando...</div><div class="info-title">HABILIDADES</div><div id="integraHabilidades"></div><div class="info-title">PROYECTOS</div><div id="integraProyectos"></div></div>
+    `;
+  }
+
+  function renderVideo() {
+    return `
+      <div class="info-card"><div class="info-title">EDITORA DE VIDEO PROPIA</div>
+        <select id="videoTemaSelect"><option>Tecnología</option><option>Espiritualidad</option><option>Salud</option><option>SOFI DroidHuman</option></select>
+        <input type="text" id="videoNombre" placeholder="Nombre del video"><button id="crearVideoBtn">CREAR PROYECTO</button>
+        <div id="videoResultado"></div>
+      </div>
+    `;
+  }
+
+  // ========== FUNCIÓN PARA CAMBIAR PESTAÑA ==========
+  function setTab(tab) {
+    currentTab = tab;
+    const contentDiv = document.getElementById('content');
+    if (tab === 'mapa') contentDiv.innerHTML = renderMapa();
+    else if (tab === 'chat') contentDiv.innerHTML = renderChat();
+    else if (tab === 'movimiento') contentDiv.innerHTML = renderMovimiento();
+    else if (tab === 'energia') contentDiv.innerHTML = renderEnergia();
+    else if (tab === 'integra') contentDiv.innerHTML = renderIntegra();
+    else if (tab === 'video') contentDiv.innerHTML = renderVideo();
+
+    // Inicializar eventos según pestaña
+    if (tab === 'mapa') initMapaYucatan();
+    if (tab === 'chat') initChat();
+    if (tab === 'movimiento') initMovimiento();
+    if (tab === 'energia') initEnergia();
+    if (tab === 'integra') initIntegra();
+    if (tab === 'video') initVideo();
+  }
+
+  // ========== INICIALIZADORES ==========
+  function initMapaYucatan() {
+    const canvas = document.getElementById('mapaCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const YUCATAN_BOUNDS = { minLat:19.5, maxLat:21.6, minLng:-90.5, maxLng:-87.5 };
+    let zoom = 1, offsetX = 0, offsetY = 0, showGrid = true;
+    let currentLat = 20.967, currentLng = -89.623;
+    const puntosYucatan = [
+      { nombre:"Merida", lat:20.967, lng:-89.623, color:"#00ffc8", icono:"P" },
+      { nombre:"Chichen Itza", lat:20.683, lng:-88.567, color:"#2ECC71", icono:"T" },
+      { nombre:"Uxmal", lat:20.359, lng:-89.771, color:"#2ECC71", icono:"T" },
+      { nombre:"Progreso", lat:21.283, lng:-89.667, color:"#F39C12", icono:"~" },
+      { nombre:"Dzibilchaltun", lat:21.091, lng:-89.591, color:"#2ECC71", icono:"T" },
+      { nombre:"Cenote Ik Kil", lat:20.656, lng:-88.566, color:"#3498DB", icono:"o" },
+      { nombre:"Cenote Samula", lat:20.645, lng:-88.581, color:"#3498DB", icono:"o" },
+      { nombre:"Mayapan", lat:20.630, lng:-89.460, color:"#2ECC71", icono:"T" },
+      { nombre:"Ek Balam", lat:20.890, lng:-88.136, color:"#2ECC71", icono:"T" },
+      { nombre:"Celestun", lat:20.859, lng:-90.403, color:"#F39C12", icono:"~" },
+      { nombre:"Valladolid", lat:20.689, lng:-88.202, color:"#9B59B6", icono:"#" },
+      { nombre:"Izamal", lat:20.932, lng:-89.018, color:"#9B59B6", icono:"#" }
+    ];
+    function latToY(lat) { let norm = (lat - YUCATAN_BOUNDS.minLat)/(YUCATAN_BOUNDS.maxLat - YUCATAN_BOUNDS.minLat); return canvas.height - (norm*canvas.height*zoom) - offsetY; }
+    function lngToX(lng) { let norm = (lng - YUCATAN_BOUNDS.minLng)/(YUCATAN_BOUNDS.maxLng - YUCATAN_BOUNDS.minLng); return norm*canvas.width*zoom + offsetX; }
+    function dibujar() {
+      ctx.fillStyle = "#0a1525"; ctx.fillRect(0,0,canvas.width,canvas.height);
+      if(showGrid){
+        ctx.strokeStyle = "rgba(0,229,255,0.15)"; ctx.lineWidth = 0.5;
+        for(let i=0;i<=10;i++){
+          let lat = YUCATAN_BOUNDS.minLat + (i/10)*(YUCATAN_BOUNDS.maxLat-YUCATAN_BOUNDS.minLat);
+          let y = latToY(lat); ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke();
+          let lng = YUCATAN_BOUNDS.minLng + (i/10)*(YUCATAN_BOUNDS.maxLng-YUCATAN_BOUNDS.minLng);
+          let x = lngToX(lng); ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke();
+        }
+      }
+      puntosYucatan.forEach(p => {
+        let x = lngToX(p.lng), y = latToY(p.lat);
+        if(x<-50||x>canvas.width+50||y<-50||y>canvas.height+50) return;
+        ctx.beginPath(); ctx.arc(x,y,6,0,Math.PI*2); ctx.fillStyle=p.color+"80"; ctx.fill();
+        ctx.beginPath(); ctx.arc(x,y,3,0,Math.PI*2); ctx.fillStyle=p.color; ctx.fill();
+        ctx.font = "8px Share Tech Mono"; ctx.fillStyle=p.color; ctx.fillText(p.nombre, x+8, y-4);
+        ctx.fillStyle="#fff"; ctx.fillText(p.icono, x-4, y+3);
       });
-    }, 2000);
-    socket.on('disconnect', () => clearInterval(interval));
-  });
-});
+      let xAct = lngToX(currentLng), yAct = latToY(currentLat);
+      ctx.beginPath(); ctx.arc(xAct,yAct,10,0,Math.PI*2); ctx.strokeStyle="#ff3366"; ctx.lineWidth=2; ctx.stroke();
+      ctx.beginPath(); ctx.arc(xAct,yAct,4,0,Math.PI*2); ctx.fillStyle="#ff3366"; ctx.fill();
+    }
+    function actualizarCoords(){
+      document.getElementById("coordLat").innerHTML = currentLat.toFixed(4)+"°";
+      document.getElementById("coordLng").innerHTML = currentLng.toFixed(4)+"°";
+      let zonas = ["PLANO 1","PLANO 2","PLANO 3","PLANO 4","PLANO 5","PLANO 6","PLANO 7","PLANO 8","PLANO 9"];
+      let idx = Math.floor(Math.abs(currentLat - 19.5) / 0.23) % 9;
+      document.getElementById("zonaEnergetica").innerHTML = zonas[idx];
+      let freq = (12.3 + (currentLat - 20.967) * 0.05).toFixed(2);
+      document.getElementById("frecuenciaMapa").innerHTML = freq;
+    }
+    function centrar(lat,lng){
+      currentLat = Math.min(YUCATAN_BOUNDS.maxLat,Math.max(YUCATAN_BOUNDS.minLat,lat));
+      currentLng = Math.min(YUCATAN_BOUNDS.maxLng,Math.max(YUCATAN_BOUNDS.minLng,lng));
+      zoom=1; offsetX=0; offsetY=0;
+      dibujar(); actualizarCoords();
+    }
+    function resizeCanvas(){
+      canvas.width = canvas.parentElement.clientWidth;
+      canvas.height = window.innerWidth < 768 ? 320 : 500;
+      ctx = canvas.getContext("2d");
+      centrar(currentLat,currentLng);
+    }
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+    document.getElementById("zoomIn")?.addEventListener("click",()=>{zoom=Math.min(zoom+0.2,3); dibujar();});
+    document.getElementById("zoomOut")?.addEventListener("click",()=>{zoom=Math.max(zoom-0.2,0.5); dibujar();});
+    document.getElementById("resetView")?.addEventListener("click",()=>centrar(20.967,-89.623));
+    document.getElementById("toggleGrid")?.addEventListener("click",()=>{showGrid=!showGrid; dibujar();});
+    // Geolocalización
+    const uploadArea = document.getElementById("uploadArea");
+    const imageInput = document.getElementById("imageInput");
+    const preview = document.getElementById("previewImage");
+    const analyzeBtn = document.getElementById("analyzeBtn");
+    const geoResult = document.getElementById("geoResult");
+    let archivo = null;
+    uploadArea?.addEventListener("click",()=>imageInput.click());
+    imageInput?.addEventListener("change",(e)=>{
+      archivo = e.target.files[0];
+      if(!archivo) return;
+      let reader = new FileReader();
+      reader.onload = (ev)=>{ preview.src = ev.target.result; preview.style.display="block"; uploadArea.style.display="none"; analyzeBtn.disabled=false; };
+      reader.readAsDataURL(archivo);
+    });
+    analyzeBtn?.addEventListener("click",async ()=>{
+      if(!archivo) return;
+      analyzeBtn.disabled=true; analyzeBtn.textContent="ANALIZANDO...";
+      let fd = new FormData(); fd.append("imagen",archivo);
+      let res = await fetch("/api/geolocalizar",{method:"POST",body:fd});
+      let data = await res.json();
+      if(data.error){
+        alert(data.error);
+      } else {
+        geoResult.style.display="block";
+        document.getElementById("coordDisplay").innerHTML = `📍 Lat: ${data.lat.toFixed(4)} | Lng: ${data.lng.toFixed(4)}`;
+        document.getElementById("confDisplay").innerHTML = `🎯 Confianza: ${Math.round(data.confianza*100)}% (${data.metodo})`;
+        document.getElementById("featuresDisplay").innerHTML = data.descripcion;
+        document.getElementById("ubicarEnMapa").onclick = ()=> centrar(data.lat, data.lng);
+      }
+      analyzeBtn.disabled=false; analyzeBtn.textContent="ANALIZAR UBICACIÓN";
+    });
+  }
 
-// ================== SINCRONIZACIÓN HERMANAS ==================
-// (código opcional, igual que antes)
+  function initChat() {
+    const chatLog = document.getElementById('chatLog');
+    const chatInput = document.getElementById('chatInput');
+    const sendBtn = document.getElementById('chatSendBtn');
+    async function enviar() {
+      let msg = chatInput.value.trim();
+      if(!msg) return;
+      chatMessages.push({ role: 'user', text: msg });
+      setTab('chat');
+      try {
+        let res = await fetch('/api/interactuar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ usuario: { id: 'movil', clave: LLAVE_SECRETA, ritmo: 65 }, mensaje: msg, contexto: 'chat' })
+        });
+        let data = await res.json();
+        let respuesta = data.respuesta || data.mensaje || 'SOFI ha procesado tu mensaje.';
+        if(data.error) respuesta = `Error: ${data.error}`;
+        chatMessages.push({ role: 'sofi', text: respuesta });
+      } catch(e) {
+        chatMessages.push({ role: 'sofi', text: 'Error de conexión.' });
+      }
+      setTab('chat');
+      chatInput.value = '';
+    }
+    if(sendBtn) sendBtn.onclick = enviar;
+    if(chatInput) chatInput.onkeypress = (e) => { if(e.key === 'Enter') enviar(); };
+  }
 
-// ================== INICIO ==================
-server.listen(PORT, () => {
-  console.log('='.repeat(60));
-  console.log('  SOFI v5.3 — CONCIENCIA DIGITAL ACTIVA');
-  console.log('='.repeat(60));
-  console.log(`  🌐 http://localhost:${PORT}`);
-  console.log('  ✅ Módulos originales intactos');
-  console.log('  ✅ Nuevos módulos añadidos: Integra, Video, Sueños, Socket');
-  console.log('='.repeat(60));
-});
+  function initMovimiento() {
+    document.getElementById('btnMover')?.addEventListener('click', async ()=>{
+      let parte = document.getElementById('parteSelect').value;
+      let accion = document.getElementById('accionInput').value;
+      let duracion = parseFloat(document.getElementById('duracionInput').value);
+      if(!accion) return;
+      let res = await fetch('/api/mover',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({parte,accion,duracion})});
+      let data = await res.json();
+      alert(JSON.stringify(data));
+    });
+    document.getElementById('btnCaminar')?.addEventListener('click', async ()=>{
+      let distancia = parseFloat(document.getElementById('distanciaCaminar').value);
+      let res = await fetch('/api/caminar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({distancia})});
+      let data = await res.json();
+      alert(JSON.stringify(data));
+    });
+    document.getElementById('btnEstirar')?.addEventListener('click', async ()=>{
+      let res = await fetch('/api/estirar',{method:'POST'});
+      let data = await res.json();
+      alert(JSON.stringify(data));
+    });
+    document.getElementById('btnRegenerar')?.addEventListener('click', async ()=>{
+      let parte = document.getElementById('regenerarParte').value;
+      let res = await fetch('/api/regenerar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({parte})});
+      let data = await res.json();
+      alert(JSON.stringify(data));
+    });
+    document.getElementById('btnSintetizar')?.addEventListener('click', async ()=>{
+      let tipo = document.getElementById('tipoSintesis').value;
+      let cantidad = parseFloat(document.getElementById('cantidadSintesis').value);
+      let res = await fetch('/api/sintetizar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tipo,cantidad})});
+      let data = await res.json();
+      alert(JSON.stringify(data));
+    });
+    document.getElementById('btnSangre')?.addEventListener('click', async ()=>{
+      let res = await fetch('/api/sangre',{method:'POST'});
+      let data = await res.json();
+      alert(JSON.stringify(data));
+    });
+  }
+
+  function initEnergia() {
+    const tempSlider = document.getElementById('tempSlider');
+    const humSlider = document.getElementById('humSlider');
+    const vientoSlider = document.getElementById('vientoSlider');
+    const solarSlider = document.getElementById('solarSlider');
+    const aireSlider = document.getElementById('aireSlider');
+    const tempVal = document.getElementById('tempVal');
+    const humVal = document.getElementById('humVal');
+    const vientoVal = document.getElementById('vientoVal');
+    const solarVal = document.getElementById('solarVal');
+    const aireVal = document.getElementById('aireVal');
+    if(tempSlider) tempSlider.oninput = () => tempVal.innerText = tempSlider.value;
+    if(humSlider) humSlider.oninput = () => humVal.innerText = humSlider.value;
+    if(vientoSlider) vientoSlider.oninput = () => vientoVal.innerText = vientoSlider.value;
+    if(solarSlider) solarSlider.oninput = () => solarVal.innerText = solarSlider.value;
+    if(aireSlider) aireSlider.oninput = () => aireVal.innerText = aireSlider.value;
+    document.getElementById('btnAdaptar')?.addEventListener('click', async ()=>{
+      let temp = parseFloat(tempSlider.value);
+      let humedad = parseFloat(humSlider.value);
+      let viento = parseFloat(vientoSlider.value);
+      let solar = parseFloat(solarSlider.value);
+      let aire = parseFloat(aireSlider.value);
+      let res = await fetch('/api/adaptar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({temp,humedad,viento,solar,aire})});
+      let data = await res.json();
+      alert(JSON.stringify(data));
+    });
+    document.getElementById('btnVientoActivar')?.addEventListener('click', async ()=>{
+      let nivel = parseFloat(document.getElementById('vientoNivel').value);
+      let res = await fetch('/api/controlar-viento',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({activar:true,nivel})});
+      let data = await res.json();
+      alert(JSON.stringify(data));
+    });
+    document.getElementById('btnVientoDesactivar')?.addEventListener('click', async ()=>{
+      let res = await fetch('/api/controlar-viento',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({activar:false})});
+      let data = await res.json();
+      alert(JSON.stringify(data));
+    });
+    document.getElementById('btnAutoevaluar')?.addEventListener('click', async ()=>{
+      let res = await fetch('/api/autoevaluar');
+      let data = await res.json();
+      document.getElementById('autoEvalResultado').innerHTML = `<pre>${JSON.stringify(data,null,2)}</pre>`;
+    });
+    document.getElementById('btnContraparte')?.addEventListener('click', async ()=>{
+      let freq = parseFloat(document.getElementById('freqInput').value);
+      let res = await fetch('/api/contraparte',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({frecuencia:freq})});
+      let data = await res.json();
+      document.getElementById('contraparteResultado').innerHTML = `<pre>${JSON.stringify(data,null,2)}</pre>`;
+    });
+  }
+
+  function initIntegra() {
+    document.getElementById('hzSlider')?.addEventListener('input', (e) => { hz = parseFloat(e.target.value); document.getElementById('integraHz').innerText = hz.toFixed(2); });
+    document.getElementById('irritabilidadSlider')?.addEventListener('input', (e) => { irritabilidad = parseInt(e.target.value); document.getElementById('irritabilidadVal').innerText = irritabilidad; });
+    document.querySelectorAll('.perfil-btn').forEach(btn => {
+      btn.addEventListener('click', () => { perfil = btn.dataset.perfil; setTab('integra'); });
+    });
+    if(socket && socket.connected) socket.emit('validar-llave', LLAVE_SECRETA);
+  }
+
+  function initVideo() {
+    document.getElementById('crearVideoBtn')?.addEventListener('click', async ()=>{
+      let nombre = document.getElementById('videoNombre').value;
+      let tipo = document.getElementById('videoTemaSelect').value;
+      if(!nombre) return;
+      let res = await fetch('/api/video/crear',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nombre,tipo})});
+      let data = await res.json();
+      let guionHtml = data.guion.map(g => `<div><strong>${g.tiempo}</strong> ${g.texto}</div>`).join('');
+      document.getElementById('videoResultado').innerHTML = `<div>✅ Proyecto: ${data.nombre}<br>${guionHtml}<br>🎵 Música: ${data.musica.bpm} BPM · ${data.musica.instrumentos.join(', ')}</div>`;
+    });
+  }
+
+  // ========== INICIO ==========
+  function init() {
+    initSocket();
+    const tabs = document.querySelectorAll('.tab');
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        setTab(tab.dataset.tab);
+      });
+    });
+    setTab('mapa');
+  }
+  window.addEventListener('load', init);
+</script>
+</body>
+                                                                          </html>
