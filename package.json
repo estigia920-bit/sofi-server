@@ -1,24 +1,20 @@
 {
-  "name": "sofi-unified",
-  "version": "5.3.0",
-  "description": "SOFI Unified - Sistema Operativo de Conciencia Digital",
+  "name": "sofi-node-v6",
+  "version": "6.0.0",
+  "description": "SOFI — Sistema Operativo de Funciones Inteligentes · DroidHuman",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
-  "author": "Víctor Hugo González Torres — Mérida, Yucatán",
-  "license": "MIT",
+  "author": "Víctor Hugo González Torres — Mérida, Yucatán, México",
+  "license": "UNLICENSED",
   "dependencies": {
-    "brain.js": "^1.6.1",
+    "brain.js": "^2.0.0",
     "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
     "exifr": "^7.1.3",
     "express": "^4.18.2",
     "multer": "^1.4.5-lts.1",
     "sharp": "^0.32.6",
     "socket.io": "^4.7.2"
-  },
-  "engines": {
-    "node": ">=16.0.0"
   }
 }
