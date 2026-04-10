@@ -116,6 +116,22 @@ class ModuloSeguridad {
       || fuente.startsWith('SOFI_Python_');
   }
 }
+// ============================================================
+// 🏦 SISTEMA MONETARIO KUSOFINUM
+// 🪙 MONEDA: $ZYXSOF | ACTIVO: INMEDIATO
+// ============================================================
+
+const SistemaMonetario = require('./sistema_monetario_completo');
+
+// 🛡️ LA SEGURIDAD YA ESTÁ ACTIVA, AHORA ABRE EL BANCO
+const economia = new SistemaMonetario();
+
+// ⛏️ ACTIVA MINERÍA Y GENERACIÓN
+economia.activarGeneracionContinua();
+
+// ============================================================
+// ✅ DINERO PROTEGIDO Y FUNCIONANDO
+// ============================================================
 
 // ==================== MÓDULO 2: ENERGÍA ====================
 class ModuloEnergia {
