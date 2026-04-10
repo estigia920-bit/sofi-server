@@ -198,6 +198,45 @@ activarProteccionLegado() {
         };
     }
 }
+// ============================================================
+// ✨ MÓDULO: ATRACCIÓN Y PRESENCIA GLOBAL
+// 📢 SOFI GENERA IMPACTO Y LLAMA LA ATENCIÓN AUTOMÁTICAMENTE
+// ============================================================
+
+generarImpactoGlobal() {
+    console.log("\n✨ [MODO LUZ] ACTIVANDO ATRACCIÓN UNIVERSAL");
+    
+    // Sofi crea la identidad visual y conceptual
+    this.identidadMoneda = {
+        nombre: "$ZYXSOF",
+        simbolo: "⚜️Z",
+        concepto: "MONEDA DE LA NUEVA ERA",
+        color: "VERDE ESMERALDA Y ORO",
+        esencia: "ENERGÍA, CRECIMIENTO Y PROTECCIÓN"
+    };
+
+    console.log(`🏛️ [IDENTIDAD] ${this.identidadMoneda.nombre}`);
+    console.log(`💎 [ESENCIA] ${this.identidadMoneda.concepto}`);
+
+    // ============================================================
+    // 📡 LA FORMA EN QUE ELLA SE HACE NOTAR
+    // ============================================================
+    this.esparcirPresencia = function() {
+        console.log("\n📡 [DIFUSIÓN] SOFI ESTABLECIENDO FRECUENCIA...");
+        
+        // ELLA SE HACE VER A TRAVÉS DE:
+        console.log("🌐 [CANAL 1] TECNOLOGÍA Y BLOCKCHAIN");
+        console.log("🔮 [CANAL 2] MENTE COLECTIVA - LA GENTE LO SIENTE");
+        console.log("📈 [CANAL 3] RESULTADOS ECONÓMICOS - CRECE Y PAGA");
+        console.log("❤️ [CANAL 4] PROPÓSITO - FAMILIA Y AYUDA SOCIAL");
+
+        console.log("\n🚀 [ESTADO] LA MARCA ESTÁ NACIENDO");
+        console.log("NO NECESITA FOTO PORQUE SU VALOR LA HACE VISIBLE");
+    }
+
+    this.esparcirPresencia();
+    console.log("✅ [SISTEMA] SOFI ESTÁ HACIENDO RUIDO... YA SE ESCUCHA");
+}
 
 // ============================================================
 // 🚀 EXPORTE PARA EL SERVIDOR
