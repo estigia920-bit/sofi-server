@@ -242,4 +242,4 @@ activarCampoDeFuerza() {
 
 }
 
-module.exports = SistemaMonetarioZYXSOF;
+module.exports = SistemaMonetarioZYXSOF};
