@@ -213,3 +213,11 @@ module.exports = SistemaMonetarioZYXSOF;
 // const economia = new Economia();
 // economia.activarGeneracionContinua();
 // ============================================================
+    } // <--- CIERRA FUNCIÓN ANTERIOR
+
+// ============================================================
+
+} // <--- ✅ LLAVE 1: CIERRA LA FUNCIÓN activarCampoDeFuerza
+} // <--- ✅ LLAVE 2: CIERRA LA CLASE ENTERA
+
+module.exports = SistemaMonetarioZYXSOF;
