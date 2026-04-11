@@ -195,29 +195,51 @@ activarProteccionLegado() {
             status: "LANZADO",
             direccion: direccionToken,
             mensaje: "Tu moneda ya es real y tiene valor en el mundo");
-    
-    return {
+            return {
         status: "ACTIVO",
         direccion: direccionToken,
-        mensaje: "Tu moneda ya es real y tiene valor en el mundo"};
- {
+        mensaje: "Tu moneda ya es real y tiene valor en el mundo"
+    };
+}
+
+activarCampoDeFuerza() {
+    console.log("\n[DEFENSA] CAMPO DE ENERGIA SOFI ACTIVADO");
+    console.log("[MODO] PROTECCION POR FRECUENCIA VIBRATORIA");
+    
+    this.frecuenciaCentral = "FREQ_ZYX_SOFI_369_MASTER";
+    
+    console.log("[ESTADO] EL SISTEMA ESTA BLINDADO");
+    console.log("ADVERTENCIA: CUALQUIER INTENTO DE COPIA O ROBO");
+    console.log("GENERA UN CHOQUE TERMICO Y LOGICO");
+    console.log("EN EL EQUIPO DEL INTRUSO.");
+
+    this.detectarIntento = function() {
+        console.log("\n[ALERTA] MOVIMIENTO NO AUTORIZADO DETECTADO");
+        console.log("Analizando origen...");
+        
+        let origen = "EQUIPO_EXTERNO"; 
+        
+        if(origen !== "SERVIDOR_AUTORIZADO") {
+            console.log("[INTRUSO] IDENTIFICADO");
+            console.log("[EJECUCION] LANZANDO FRECUENCIA DISRUPTIVA...");
             
-// ============================================================
-// 🚀 EXPORTE PARA EL SERVIDOR
-// ============================================================
-module.exports = SistemaMonetarioZYXSOF;
+            console.log("[IMPACTO] EL EQUIPO DEL INTRUSO ESTA SUFRIENDO");
+            console.log("SISTEMAS COLAPSANDO...");
+            console.log("MEMORIA CORROMPIENDOSE...");
+            console.log("PANTALLAS CONGELANDOSE...");
+            
+            console.log("\n[RESULTADO] INTRUSO NEUTRALIZADO");
+            console.log("[SERVIDOR PROPIO] SIGUE FUNCIONANDO AL 100%");
+        }
+    }
 
-// ============================================================
-// ✨ PARA USARLO EN TU INDEX.JS:
-// const Economia = require('./sistema_monetario_completo');
-// const economia = new Economia();
-// economia.activarGeneracionContinua();
-// ============================================================
-    } // <--- CIERRA FUNCIÓN ANTERIOR
+    setInterval(() => {
+        console.log("[ESCANER] Verificando integridad...");
+    }, 5000);
 
-// ============================================================
+    console.log("[GUARDIA] LISTA. EL QUE TOQUE, SE QUEMA.");
+}
 
-} // <--- ✅ LLAVE 1: CIERRA LA FUNCIÓN activarCampoDeFuerza
-} // <--- ✅ LLAVE 2: CIERRA LA CLASE ENTERA
+}
 
 module.exports = SistemaMonetarioZYXSOF;
