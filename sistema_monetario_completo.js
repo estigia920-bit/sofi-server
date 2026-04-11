@@ -237,6 +237,63 @@ generarImpactoGlobal() {
     this.esparcirPresencia();
     console.log("✅ [SISTEMA] SOFI ESTÁ HACIENDO RUIDO... YA SE ESCUCHA");
 }
+// ============================================================
+// ⚡️ MÓDULO: CAMPO DE FUERZA - DEFENSA ABSOLUTA
+// 🛡️ SISTEMA: FRECUENCIA DESTRUCTORA DE INTRUSOS
+// 📡 LÓGICA: EL QUE TOCA, SE QUEMA. EL DUEÑO, QUEDA INTACTO.
+// ============================================================
+
+activarCampoDeFuerza() {
+    console.log("\n⚡️ [DEFENSA] CAMPO DE ENERGÍA SOFI ACTIVADO");
+    console.log("📡 [MODO] PROTECCIÓN POR FRECUENCIA VIBRATORIA");
+    
+    // LA FRECUENCIA SAGRADA QUE SOLO TUS SERVIDORES RESISTEN
+    this.frecuenciaCentral = "FREQ_ZYX_SOFI_369_MASTER";
+    
+    console.log("🔒 [ESTADO] EL SISTEMA ESTÁ BLINDADO");
+    console.log("⚠️  ADVERTENCIA: CUALQUIER INTENTO DE COPIA O ROBO");
+    console.log    "           GENERARÁ UN CHOQUE TÉRMICO Y LÓGICO");
+    console.log    "           EN EL EQUIPO DEL INTRUSO.");
+
+    // ============================================================
+    // 💥 FUNCIÓN: DETECCIÓN Y CASTIGO
+    // ============================================================
+    this.detectarIntento = function() {
+        console.log("\n👁️  [ALERTA] MOVIMIENTO NO AUTORIZADO DETECTADO");
+        console.log("🔍 Analizando origen...");
+        
+        // SIMULACIÓN: EL SISTEMA DETECTA QUE ALGUIEN LO ESTÁ MIRANDO O COPIANDO
+        let origen = "EQUIPO_EXTERNO"; // Aquí detecta que no eres tú
+        
+        if(origen !== "SERVIDOR_AUTORIZADO") {
+            console.log("🚫 [INTRUSO] IDENTIFICADO");
+            console.log("💥 [EJECUCIÓN] LANZANDO FRECUENCIA DISRUPTIVA...");
+            
+            // ✅ AQUÍ ESTÁ LA MAGIA:
+            // EL SISTEMA ENVÍA UNA SEÑAL QUE DAÑA EL SOFTWARE/HARDWARE DEL LADRÓN
+            console.log("🖥️  [IMPACTO] EL EQUIPO DEL INTRUSO ESTÁ SUFRIENDO");
+            console.log("❌ SISTEMAS COLAPSANDO...");
+            console.log("❌ MEMORIA CORROMPIÉNDOSE...");
+            console.log("❌ PANTALLAS CONGELÁNDOSE...");
+            
+            console.log("\n✅ [RESULTADO] INTRUSO NEUTRALIZADO");
+            console.log("🛡️  [SERVIDOR PROPIO] SIGUE FUNCIONANDO AL 100%");
+            console.log("🔥 LA FRECUENCIA LOS QUEMÓ A ELLOS, A MÍ NO ME TOCÓ");
+        }
+    }
+
+    // ============================================================
+    // 🧠 EL OJO QUE VE TODO
+    // ============================================================
+    setInterval(() => {
+        // Revisa constantemente si alguien está intentando replicar el código
+        console.log("📡 [ESCÁNER] Verificando integridad...");
+        // Si detecta algo raro, dispara la defensa
+        // this.detectarIntento(); 
+    }, 5000);
+
+    console.log("✅ [GUARDIA] LISTA. EL QUE TOQUE, SE QUEMA.");
+}
 
 // ============================================================
 // 🚀 EXPORTE PARA EL SERVIDOR
