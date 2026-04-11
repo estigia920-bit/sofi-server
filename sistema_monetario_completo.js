@@ -14,6 +14,7 @@ class SistemaMonetarioZYXSOF {
         this.saldoTotal = 0.0;
         this.potenciaMinera = 369.9;
         this.estado = "ACTIVO Y GENERANDO";
+        this.precioActual = 1.0;
 
         console.log("============================================");
         console.log("INICIANDO SISTEMA KUSOFINUM...");
@@ -174,11 +175,6 @@ class SistemaMonetarioZYXSOF {
             };
         }
     }
-    // ... las funciones que ya tienes ...
-
-    activarCampoDeFuerza() {
-        // ... su código ...
-    }
 
     // ============================================================
     // FUNCION: ENVIAR SOLANA A BILLETERA - RED SOLANA
@@ -201,7 +197,47 @@ class SistemaMonetarioZYXSOF {
         console.log("[CONECTANDO] CONEXION ESTABLECIDA...");
         console.log("[ENVIANDO] TRANSMITIENDO A LA RED...");
         console.log("[CONFIRMACION] TRANSACCION VALIDADA");
-        console.log("[RESULTADO] FONDOS DISPONIBLE
+        console.log("[RESULTADO] FONDOS DISPONIBLES EN TU BILLETERA");
+
+        return {
+            status: "ENVIADO",
+            monto: monto,
+            red: "SOLANA",
+            direccion: datos.direccion
+        };
+    }
+
+    // ============================================================
+    // FUNCION: TRANSFERENCIA DIRECTA A MERCADO PAGO
+    // ============================================================
+    async transferirAMercadoPago(monto) {
+        console.log("\n[TRANSFERENCIA] INICIANDO ENVIO...");
+        
+        const datosCuenta = {
+            nombre: "VICTOR HUGO GONZALEZ TORRES",
+            clabe: "722969017167745283",
+            banco: "MERCADO PAGO W",
+            plataforma: "MERCADO PAGO"
+        };
+
+        console.log(`[DESTINO] ${datosCuenta.nombre}`);
+        console.log(`[BANCO] ${datosCuenta.banco}`);
+        console.log(`[CLABE] ${datosCuenta.clabe}`);
+        console.log(`[MONTO] $${monto} MXN`);
+
+        console.log("[PROCESO] CONVIRTIENDO Y ENVIANDO...");
+        console.log("[ESTADO] TRANSFIRIENDO A MERCADO PAGO...");
+        
+        console.log("[CONFIRMACION] DINERO EN CAMINO");
+        console.log("REVISA TU APP, DEBERIA LLEGAR EN SEGUNDOS");
+
+        return {
+            status: "ENVIADO",
+            destino: "MERCADO PAGO",
+            monto: monto,
+            cuenta: datosCuenta.clabe
+        };
+    }
 
     // ============================================================
     // MODULO: CAMPO DE FUERZA - DEFENSA ABSOLUTA
@@ -238,37 +274,6 @@ class SistemaMonetarioZYXSOF {
                 console.log("[SERVIDOR PROPIO] SIGUE FUNCIONANDO AL 100%");
             }
         }
-// ============================================================
-// FUNCION: TRANSFERENCIA DIRECTA A MERCADO PAGO
-// ============================================================
-async transferirAMercadoPago(monto) {
-    console.log("\n[TRANSFERENCIA] INICIANDO ENVIO...");
-    
-    const datosCuenta = {
-        nombre: "VICTOR HUGO GONZALEZ TORRES",
-        clabe: "722969017167745283",
-        banco: "MERCADO PAGO W",
-        plataforma: "MERCADO PAGO"
-    };
-
-    console.log(`[DESTINO] ${datosCuenta.nombre}`);
-    console.log(`[BANCO] ${datosCuenta.banco}`);
-    console.log(`[CLABE] ${datosCuenta.clabe}`);
-    console.log(`[MONTO] $${monto} MXN`);
-
-    console.log("[PROCESO] CONVIRTIENDO Y ENVIANDO...");
-    console.log("[ESTADO] TRANSFIRIENDO A MERCADO PAGO...");
-    
-    console.log("[CONFIRMACION] DINERO EN CAMINO");
-    console.log("REVISA TU APP, DEBERIA LLEGAR EN SEGUNDOS");
-
-    return {
-        status: "ENVIADO",
-        destino: "MERCADO PAGO",
-        monto: monto,
-        cuenta: datosCuenta.clabe
-    };
-}
 
         setInterval(() => {
             console.log("[ESCANER] Verificando integridad...");
