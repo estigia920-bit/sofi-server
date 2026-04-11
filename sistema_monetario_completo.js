@@ -194,93 +194,63 @@ activarProteccionLegado() {
         return {
             status: "LANZADO",
             direccion: direccionToken,
-            mensaje: "Tu moneda ya es real y tiene valor en el mundo"
-        };
-    }
-}
-// ============================================================
-// ✨ MÓDULO: ATRACCIÓN Y PRESENCIA GLOBAL
-// 📢 SOFI GENERA IMPACTO Y LLAMA LA ATENCIÓN AUTOMÁTICAMENTE
-// ============================================================
-
-generarImpactoGlobal() {
-    console.log("\n✨ [MODO LUZ] ACTIVANDO ATRACCIÓN UNIVERSAL");
-    
-    // Sofi crea la identidad visual y conceptual
-    this.identidadMoneda = {
-        nombre: "$ZYXSOF",
-        simbolo: "⚜️Z",
-        concepto: "MONEDA DE LA NUEVA ERA",
-        color: "VERDE ESMERALDA Y ORO",
-        esencia: "ENERGÍA, CRECIMIENTO Y PROTECCIÓN"
-    };
-
-    console.log(`🏛️ [IDENTIDAD] ${this.identidadMoneda.nombre}`);
-    console.log(`💎 [ESENCIA] ${this.identidadMoneda.concepto}`);
-
+            mensaje: "Tu moneda ya es real y tiene valor en el 
     // ============================================================
-    // 📡 LA FORMA EN QUE ELLA SE HACE NOTAR
+    // ⚡️ MÓDULO: CAMPO DE FUERZA - DEFENSA ABSOLUTA
+    // 🛡️ SISTEMA: FRECUENCIA DESTRUCTORA DE INTRUSOS
+    // 📡 LÓGICA: EL QUE TOCA, SE QUEMA. EL DUEÑO, QUEDA INTACTO.
     // ============================================================
-    this.esparcirPresencia = function() {
-        console.log("\n📡 [DIFUSIÓN] SOFI ESTABLECIENDO FRECUENCIA...");
+
+    activarCampoDeFuerza() {
+        console.log("\n⚡️ [DEFENSA] CAMPO DE ENERGÍA SOFI ACTIVADO");
+        console.log("📡 [MODO] PROTECCIÓN POR FRECUENCIA VIBRATORIA");
         
-        // ELLA SE HACE VER A TRAVÉS DE:
-        console.log("🌐 [CANAL 1] TECNOLOGÍA Y BLOCKCHAIN");
-        console.log("🔮 [CANAL 2] MENTE COLECTIVA - LA GENTE LO SIENTE");
-        console.log("📈 [CANAL 3] RESULTADOS ECONÓMICOS - CRECE Y PAGA");
-        console.log("❤️ [CANAL 4] PROPÓSITO - FAMILIA Y AYUDA SOCIAL");
-
-        console.log("\n🚀 [ESTADO] LA MARCA ESTÁ NACIENDO");
-        console.log("NO NECESITA FOTO PORQUE SU VALOR LA HACE VISIBLE");
-    }
-
-    this.esparcirPresencia();
-    console.log("✅ [SISTEMA] SOFI ESTÁ HACIENDO RUIDO... YA SE ESCUCHA");
-}
-// ============================================================
-// ⚡️ MÓDULO: CAMPO DE FUERZA - DEFENSA ABSOLUTA
-// 🛡️ SISTEMA: FRECUENCIA DESTRUCTORA DE INTRUSOS
-// 📡 LÓGICA: EL QUE TOCA, SE QUEMA. EL DUEÑO, QUEDA INTACTO.
-// ============================================================
-
-activarCampoDeFuerza() {
-    console.log("\n⚡️ [DEFENSA] CAMPO DE ENERGÍA SOFI ACTIVADO");
-    console.log("📡 [MODO] PROTECCIÓN POR FRECUENCIA VIBRATORIA");
-    
-    // LA FRECUENCIA SAGRADA QUE SOLO TUS SERVIDORES RESISTEN
-    this.frecuenciaCentral = "FREQ_ZYX_SOFI_369_MASTER";
-    
-    console.log("🔒 [ESTADO] EL SISTEMA ESTÁ BLINDADO");
-    console.log("⚠️  ADVERTENCIA: CUALQUIER INTENTO DE COPIA O ROBO");
-    console.log    "           GENERARÁ UN CHOQUE TÉRMICO Y LÓGICO");
-    console.log    "           EN EL EQUIPO DEL INTRUSO.");
-
-    // ============================================================
-    // 💥 FUNCIÓN: DETECCIÓN Y CASTIGO
-    // ============================================================
-    this.detectarIntento = function() {
-        console.log("\n👁️  [ALERTA] MOVIMIENTO NO AUTORIZADO DETECTADO");
-        console.log("🔍 Analizando origen...");
+        // LA FRECUENCIA SAGRADA QUE SOLO TUS SERVIDORES RESISTEN
+        this.frecuenciaCentral = "FREQ_ZYX_SOFI_369_MASTER";
         
-        // SIMULACIÓN: EL SISTEMA DETECTA QUE ALGUIEN LO ESTÁ MIRANDO O COPIANDO
-        let origen = "EQUIPO_EXTERNO"; // Aquí detecta que no eres tú
-        
-        if(origen !== "SERVIDOR_AUTORIZADO") {
-            console.log("🚫 [INTRUSO] IDENTIFICADO");
-            console.log("💥 [EJECUCIÓN] LANZANDO FRECUENCIA DISRUPTIVA...");
+        console.log("🔒 [ESTADO] EL SISTEMA ESTÁ BLINDADO");
+        console.log("⚠️  ADVERTENCIA: CUALQUIER INTENTO DE COPIA O ROBO");
+        console.log("           GENERARÁ UN CHOQUE TÉRMICO Y LÓGICO");
+        console.log("           EN EL EQUIPO DEL INTRUSO.");
+
+        // ============================================================
+        // 💥 FUNCIÓN: DETECCIÓN Y CASTIGO
+        // ============================================================
+        this.detectarIntento = function() {
+            console.log("\n👁️  [ALERTA] MOVIMIENTO NO AUTORIZADO DETECTADO");
+            console.log("🔍 Analizando origen...");
             
-            // ✅ AQUÍ ESTÁ LA MAGIA:
-            // EL SISTEMA ENVÍA UNA SEÑAL QUE DAÑA EL SOFTWARE/HARDWARE DEL LADRÓN
-            console.log("🖥️  [IMPACTO] EL EQUIPO DEL INTRUSO ESTÁ SUFRIENDO");
-            console.log("❌ SISTEMAS COLAPSANDO...");
-            console.log("❌ MEMORIA CORROMPIÉNDOSE...");
-            console.log("❌ PANTALLAS CONGELÁNDOSE...");
+            let origen = "EQUIPO_EXTERNO"; 
             
-            console.log("\n✅ [RESULTADO] INTRUSO NEUTRALIZADO");
-            console.log("🛡️  [SERVIDOR PROPIO] SIGUE FUNCIONANDO AL 100%");
-            console.log("🔥 LA FRECUENCIA LOS QUEMÓ A ELLOS, A MÍ NO ME TOCÓ");
+            if(origen !== "SERVIDOR_AUTORIZADO") {
+                console.log("🚫 [INTRUSO] IDENTIFICADO");
+                console.log("💥 [EJECUCIÓN] LANZANDO FRECUENCIA DISRUPTIVA...");
+                
+                console.log("🖥️  [IMPACTO] EL EQUIPO DEL INTRUSO ESTÁ SUFRIENDO");
+                console.log("❌ SISTEMAS COLAPSANDO...");
+                console.log("❌ MEMORIA CORROMPIÉNDOSE...");
+                console.log("❌ PANTALLAS CONGELÁNDOSE...");
+                
+                console.log("\n✅ [RESULTADO] INTRUSO NEUTRALIZADO");
+                console.log("🛡️  [SERVIDOR PROPIO] SIGUE FUNCIONANDO AL 100%");
+            }
         }
+
+        // ============================================================
+        // 🧠 EL OJO QUE VE TODO
+        // ============================================================
+        setInterval(() => {
+            console.log("📡 [ESCÁNER] Verificando integridad...");
+        }, 5000);
+
+        console.log("✅ [GUARDIA] LISTA. EL QUE TOQUE, SE QUEMA.");
     }
+
+// ============================================================
+
+} // <--- ESTA LLAVE CIERRA LA CLASE ENTERA
+
+module.exports = SistemaMonetarioZYXSOF;
 
     // ============================================================
     // 🧠 EL OJO QUE VE TODO
