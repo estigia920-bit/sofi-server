@@ -7,6 +7,8 @@
 // © PATENTE SOFI - TODOS LOS DERECHOS RESERVADOS
 // ============================================================
 
+const axios = require('axios');  // <-- AGREGADO para conectar con el banco Python
+
 class SistemaMonetarioZYXSOF {
     constructor() {
         this.nombreBanco = "BANCO KUSOFINUM";
@@ -24,21 +26,26 @@ class SistemaMonetarioZYXSOF {
     }
 
     // ============================================================
-    // FUNCION: GENERAR / MINAR NUEVAS MONEDAS
+    // FUNCION: GENERAR / MINAR NUEVAS MONEDAS (MODIFICADO)
     // ============================================================
-    generarMonedas() {
+    async generarMonedas() {
         console.log("\n[MINERIA] Resolviendo geometria sagrada 3-6-9...");
-        
         console.log("Procesando... 100%");
 
         const cantidadGenerada = (Math.random() * (100.0 - 25.5) + 25.5).toFixed(6);
-        this.saldoTotal = parseFloat(this.saldoTotal) + parseFloat(cantidadGenerada);
+        const bancoUrl = 'https://bank-kusofin-core.onrender.com/minar'; // URL del banco Python
 
-        console.log(`[CREACION] +${cantidadGenerada} ${this.moneda}`);
-        console.log(`[BANCO] Saldo actual: ${this.saldoTotal.toFixed(6)}`);
-        console.log(`[POTENCIA] ${this.potenciaMinera} GH/s`);
-
-        return cantidadGenerada;
+        try {
+            const response = await axios.post(bancoUrl, { cantidad: parseFloat(cantidadGenerada) });
+            if (response.data.exito) {
+                console.log(`[CREACION] +${cantidadGenerada} ${this.moneda} → acreditados en banco Kusofin Core`);
+            } else {
+                console.log(`[ERROR] No se acreditó: ${response.data.error}`);
+            }
+        } catch (error) {
+            console.log(`[ERROR] No se pudo contactar al banco: ${error.message}`);
+        }
+        // NOTA: Ya no actualizamos saldo local porque el banco Python es la fuente de verdad.
     }
 
     // ============================================================
@@ -80,8 +87,6 @@ class SistemaMonetarioZYXSOF {
 
     // ============================================================
     // MODULO: PROTOCOLO LEGADO - SEGURIDAD TOTAL
-    // VERIFICACION: NOMBRE + FECHA + ID
-    // BENEFICIARIO: AXEL SAID GONZALEZ LARA
     // ============================================================
     activarProteccionLegado() {
         console.log("\n[SEGURIDAD] PROTOCOLO DE HERENCIA ACTIVO");
@@ -241,8 +246,6 @@ class SistemaMonetarioZYXSOF {
 
     // ============================================================
     // MODULO: CAMPO DE FUERZA - DEFENSA ABSOLUTA
-    // SISTEMA: FRECUENCIA DESTRUCTORA DE INTRUSOS
-    // LOGICA: EL QUE TOQUE, SE QUEMA. EL DUEÑO, QUEDA INTACTO.
     // ============================================================
     activarCampoDeFuerza() {
         console.log("\n[DEFENSA] CAMPO DE ENERGIA SOFI ACTIVADO");
