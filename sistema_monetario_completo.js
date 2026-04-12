@@ -1,86 +1,78 @@
-// ============================================================
-// CÓDIGO 1 — MINERO NODE.JS
-// Solo mina y envía todo al banco Python (Código 2)
-// ❌ Sin banco local — Flask es el único banco
-// ============================================================
-
 const express = require('express');
-const axios   = require('axios');
-
-const app  = express();
+const axios = require('axios'); // ✅✅✅ AQUÍ ESTÁ EL AXIOS QUE FALTABA
+const app = express();
 const PORT = 3000;
 
-// ⚠️ En producción usa variable de entorno:
-// const URL_BANCO = process.env.URL_BANCO_PRINCIPAL || "http://localhost:5000";
-const URL_BANCO = "https://bank-kusofin-core.onrender.com";
-
+// Middleware para leer JSON
 app.use(express.json());
 
-// ============================================================
-// ENVIAR AL BANCO PYTHON — con reintentos automáticos
-// ============================================================
-async function enviarAlBanco(ruta, datos, intentos = 3) {
-    for (let i = 1; i <= intentos; i++) {
-        try {
-            const respuesta = await axios.post(`${URL_BANCO}/${ruta}`, datos, {
-                timeout: 5000,
-                headers: { 'Content-Type': 'application/json' }
-            });
-            console.log(`✅ [${ruta}] Enviado:`, respuesta.data);
-            return respuesta.data;
-        } catch (error) {
-            console.error(`❌ [${ruta}] Intento ${i}/${intentos}: ${error.message}`);
-            if (i < intentos) await new Promise(r => setTimeout(r, 2000 * i));
-        }
+// Datos del sistema
+let saldoBanco = 0;
+
+// ✅✅✅ AQUÍ PONES LA URL DE TU SERVIDOR PYTHON (CÓDIGO 2)
+const URL_BANCO_PRINCIPAL = "http://localhost:5000";
+
+// =============================================
+// FUNCIÓN PARA MANDAR DATOS AL PYTHON
+// =============================================
+async function enviarAlBanco(ruta, datos) {
+    try {
+        const respuesta = await axios.post(`${URL_BANCO_PRINCIPAL}/${ruta}`, datos);
+        console.log(`✅ Enviado a ${ruta}:`, respuesta.data);
+    } catch (error) {
+        console.error(`❌ Error al enviar a ${ruta}:`, error.message);
     }
-    console.error(`🔴 [${ruta}] Falló después de ${intentos} intentos. Se perdió el dato.`);
-    return null;
 }
 
-// ============================================================
-// MINERÍA — genera monedas y las manda directo al Flask
-// ❌ No acumula nada aquí
-// ============================================================
-function iniciarMineria() {
-    console.log("⛏️  Minería iniciada — enviando directo al banco Python");
+// =============================================
+// MINERÍA
+// =============================================
+function generarMonedas() {
+    setInterval(() => {
+        const ganancia = (Math.random() * 0.1).toFixed(4);
+        saldoBanco = parseFloat(saldoBanco) + parseFloat(ganancia);
 
-    setInterval(async () => {
-        // Simula dificultad variable (entre 0.001 y 0.05)
-        const ganancia = parseFloat((Math.random() * 0.049 + 0.001).toFixed(6));
+        console.log(`⛏️ Minado: +${ganancia} monedas | Saldo: ${saldoBanco}`);
 
-        console.log(`⛏️  Minado: +${ganancia} monedas → enviando al banco...`);
-
-        await enviarAlBanco('recibir-mineria', {
+        // 🟢 ENVIAR DIRECTO AL BANCO DE PYTHON
+        enviarAlBanco('recibir-mineria', {
             usuario: "minero",
-            cantidad: ganancia,
-            timestamp: Date.now()
+            cantidad: parseFloat(ganancia)
         });
 
-    }, 3000); // cada 3 segundos
+    }, 3000);
 }
 
-// ============================================================
+// =============================================
+// TRANSFERIR TODO EL SALDO INICIAL
+// =============================================
+async function transferirSaldoTotal() {
+    if (saldoBanco > 0) {
+        console.log(`📤 Transfiriendo saldo total: ${saldoBanco}`);
+        await enviarAlBanco('transferencia-total', {
+            usuario: "sistema",
+            saldo_total: saldoBanco
+        });
+        saldoBanco = 0; // 💸 Se vacía este banco
+    }
+}
+
+// =============================================
 // RUTAS
-// ============================================================
+// =============================================
 app.get('/', (req, res) => {
     res.json({
-        sistema : "Minero NodeJS",
-        version : "2.0",
-        estado  : "activo",
-        banco   : URL_BANCO,
-        nota    : "Sin banco local — todo va al banco Python"
+        sistema: "Minería NodeJS",
+        estado: "activo",
+        saldo_actual: saldoBanco
     });
 });
 
-app.get('/ping', (req, res) => {
-    res.json({ status: "ok", ts: Date.now() });
-});
-
-// ============================================================
-// ARRANQUE
-// ============================================================
+// =============================================
+// INICIAR
+// =============================================
 app.listen(PORT, () => {
-    console.log(`🚀 Minero Node corriendo en puerto ${PORT}`);
-    console.log(`🏦 Banco destino: ${URL_BANCO}`);
-    iniciarMineria();
+    console.log(`🚀 Servidor Node corriendo en puerto ${PORT}`);
+    transferirSaldoTotal();
+    generarMonedas();
 });
