@@ -1,199 +1,86 @@
-# ============================================================
-# CÓDIGO 2 — BANCO PRINCIPAL PYTHON (FLASK)
-# Banco único. Recibe minería del Node.js y gestiona todo.
-# ============================================================
+// ============================================================
+// CÓDIGO 1 — MINERO NODE.JS
+// Solo mina y envía todo al banco Python (Código 2)
+// ❌ Sin banco local — Flask es el único banco
+// ============================================================
 
-import threading
-import json
-import urllib.request
-import time
-from flask import Flask, request, jsonify
-from market_engine import MarketEngine
-from bot_frecuencia import BotFrecuencias
-from config import NOMBRE_BANCO, NOMBRE_MONEDA
+const express = require('express');
+const axios   = require('axios');
 
-app = Flask(__name__)
+const app  = express();
+const PORT = 3000;
 
-# ============================================================
-# BANCO INTERNO — dict en memoria (reemplaza con DB si quieres)
-# ============================================================
-cuentas_banco = {}
-lock_banco = threading.Lock()
+// ⚠️ En producción usa variable de entorno:
+// const URL_BANCO = process.env.URL_BANCO_PRINCIPAL || "http://localhost:5000";
+const URL_BANCO = process.env.URL_BANCO_PRINCIPAL || "http://localhost:5000";
 
-def depositar(usuario: str, cantidad: float) -> float:
-    """Deposita y devuelve el nuevo saldo."""
-    with lock_banco:
-        cuentas_banco[usuario] = cuentas_banco.get(usuario, 0.0) + cantidad
-        return cuentas_banco[usuario]
+app.use(express.json());
 
-def obtener_saldo(usuario: str) -> float:
-    with lock_banco:
-        return cuentas_banco.get(usuario, 0.0)
+// ============================================================
+// ENVIAR AL BANCO PYTHON — con reintentos automáticos
+// ============================================================
+async function enviarAlBanco(ruta, datos, intentos = 3) {
+    for (let i = 1; i <= intentos; i++) {
+        try {
+            const respuesta = await axios.post(`${URL_BANCO}/${ruta}`, datos, {
+                timeout: 5000,
+                headers: { 'Content-Type': 'application/json' }
+            });
+            console.log(`✅ [${ruta}] Enviado:`, respuesta.data);
+            return respuesta.data;
+        } catch (error) {
+            console.error(`❌ [${ruta}] Intento ${i}/${intentos}: ${error.message}`);
+            if (i < intentos) await new Promise(r => setTimeout(r, 2000 * i));
+        }
+    }
+    console.error(`🔴 [${ruta}] Falló después de ${intentos} intentos. Se perdió el dato.`);
+    return null;
+}
 
-def obtener_todos_saldos() -> dict:
-    with lock_banco:
-        return dict(cuentas_banco)
+// ============================================================
+// MINERÍA — genera monedas y las manda directo al Flask
+// ❌ No acumula nada aquí
+// ============================================================
+function iniciarMineria() {
+    console.log("⛏️  Minería iniciada — enviando directo al banco Python");
 
-# ============================================================
-# ENDPOINTS GENERALES
-# ============================================================
-@app.route('/')
-def home():
-    return jsonify({
-        "banco"      : NOMBRE_BANCO,
-        "moneda"     : NOMBRE_MONEDA,
-        "estado"     : "activo",
-        "frecuencias": "12.3 Hz",
-        "cuentas"    : len(obtener_todos_saldos())
-    })
+    setInterval(async () => {
+        // Simula dificultad variable (entre 0.001 y 0.05)
+        const ganancia = parseFloat((Math.random() * 0.049 + 0.001).toFixed(6));
 
-@app.route('/ping', methods=['GET'])
-def ping():
-    return jsonify({"status": "ok", "ts": time.time()})
+        console.log(`⛏️  Minado: +${ganancia} monedas → enviando al banco...`);
 
-# ============================================================
-# ENDPOINTS DE MERCADO
-# ============================================================
-@app.route('/orden', methods=['POST'])
-def crear_orden():
-    data = request.json
-    res  = MarketEngine.crear_orden(
-        data['usuario'], data['tipo'], data['precio'], data['cantidad']
-    )
-    return jsonify(res)
+        await enviarAlBanco('recibir-mineria', {
+            usuario: "minero",
+            cantidad: ganancia,
+            timestamp: Date.now()
+        });
 
-@app.route('/orden/<int:id>', methods=['DELETE'])
-def cancelar_orden(id):
-    return jsonify(MarketEngine.cancelar_orden(id))
+    }, 3000); // cada 3 segundos
+}
 
-@app.route('/libro', methods=['GET'])
-def libro():
-    return jsonify(MarketEngine.obtener_libro_ordenes())
+// ============================================================
+// RUTAS
+// ============================================================
+app.get('/', (req, res) => {
+    res.json({
+        sistema : "Minero NodeJS",
+        version : "2.0",
+        estado  : "activo",
+        banco   : URL_BANCO,
+        nota    : "Sin banco local — todo va al banco Python"
+    });
+});
 
-@app.route('/matching', methods=['POST'])
-def ejecutar_matching():
-    MarketEngine.ejecutar_matching()
-    return jsonify({"exito": True})
+app.get('/ping', (req, res) => {
+    res.json({ status: "ok", ts: Date.now() });
+});
 
-# ============================================================
-# ENDPOINT 1 — RECIBIR MINERÍA DEL NODE.JS
-# ============================================================
-@app.route('/recibir-mineria', methods=['POST'])
-def recibir_mineria():
-    """
-    Recibe cada lote minado por el Código 1 (Node.js)
-    y lo deposita directamente en el banco.
-    """
-    try:
-        data     = request.json or {}
-        cantidad = float(data.get('cantidad', 0))
-        usuario  = str(data.get('usuario', 'minero'))
-        ts       = data.get('timestamp', time.time())
-
-        if cantidad <= 0:
-            return jsonify({"exito": False, "error": "Cantidad inválida"}), 400
-
-        nuevo_saldo = depositar(usuario, cantidad)
-
-        print(f"⛏️  Minería recibida | +{cantidad:.6f} para '{usuario}' | Saldo: {nuevo_saldo:.6f}")
-
-        return jsonify({
-            "exito"      : True,
-            "accion"     : "mineria_depositada",
-            "usuario"    : usuario,
-            "cantidad"   : cantidad,
-            "saldo_total": nuevo_saldo,
-            "timestamp"  : ts
-        })
-
-    except Exception as e:
-        print(f"❌ Error en recibir_mineria: {e}")
-        return jsonify({"exito": False, "error": str(e)}), 500
-
-# ============================================================
-# ENDPOINT 2 — TRANSFERENCIA TOTAL (saldo histórico del Node)
-# ============================================================
-@app.route('/transferencia-total', methods=['POST'])
-def transferencia_total():
-    """
-    Recibe el saldo completo acumulado en el banco viejo (Node.js)
-    al momento del arranque. Solo debería llamarse una vez.
-    """
-    try:
-        data           = request.json or {}
-        saldo_anterior = float(data.get('saldo_total', 0))
-        usuario        = str(data.get('usuario', 'sistema'))
-
-        if saldo_anterior < 0:
-            return jsonify({"exito": False, "error": "Saldo negativo no permitido"}), 400
-
-        nuevo_saldo = depositar(usuario, saldo_anterior)
-
-        print(f"🏦 Transferencia total recibida | +{saldo_anterior} para '{usuario}' | Saldo: {nuevo_saldo}")
-
-        return jsonify({
-            "exito"         : True,
-            "accion"        : "transferencia_total_completada",
-            "usuario"       : usuario,
-            "saldo_recibido": saldo_anterior,
-            "saldo_total"   : nuevo_saldo,
-            "mensaje"       : "Banco viejo vaciado — fondos en banco principal"
-        })
-
-    except Exception as e:
-        print(f"❌ Error en transferencia_total: {e}")
-        return jsonify({"exito": False, "error": str(e)}), 500
-
-# ============================================================
-# ENDPOINT 3 — CONSULTAR SALDO
-# ============================================================
-@app.route('/saldo/<usuario>', methods=['GET'])
-def consultar_saldo(usuario):
-    return jsonify({
-        "usuario": usuario,
-        "saldo"  : obtener_saldo(usuario),
-        "moneda" : NOMBRE_MONEDA
-    })
-
-@app.route('/saldos', methods=['GET'])
-def consultar_todos():
-    return jsonify({
-        "banco" : NOMBRE_BANCO,
-        "saldos": obtener_todos_saldos()
-    })
-
-# ============================================================
-# PRECIO KRAKEN
-# ============================================================
-def obtener_precio_kraken():
-    url = "https://api.kraken.com/0/public/Ticker?pair=XXBTZUSD"
-    try:
-        with urllib.request.urlopen(url, timeout=5) as response:
-            data = json.loads(response.read().decode())
-            return float(data['result']['XXBTZUSD']['c'][0])
-    except Exception as e:
-        print(f"❌ Error al obtener precio Kraken: {e}")
-        return None
-
-# ============================================================
-# HILOS DE FONDO
-# ============================================================
-def iniciar_bot():
-    bot = BotFrecuencias(obtener_precio_kraken)
-    bot.iniciar()
-
-def matching_loop():
-    while True:
-        MarketEngine.ejecutar_matching()
-        time.sleep(5)
-
-# ============================================================
-# ARRANQUE
-# ============================================================
-if __name__ == '__main__':
-    print(f"🏦 Iniciando banco: {NOMBRE_BANCO} | Moneda: {NOMBRE_MONEDA}")
-
-    threading.Thread(target=iniciar_bot,    daemon=True).start()
-    threading.Thread(target=matching_loop,  daemon=True).start()
-
-    app.run(host='0.0.0.0', port=5000, debug=False)
+// ============================================================
+// ARRANQUE
+// ============================================================
+app.listen(PORT, () => {
+    console.log(`🚀 Minero Node corriendo en puerto ${PORT}`);
+    console.log(`🏦 Banco destino: ${URL_BANCO}`);
+    iniciarMineria();
+});
