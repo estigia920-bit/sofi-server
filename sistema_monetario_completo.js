@@ -1,289 +1,127 @@
-// ============================================================
-// SISTEMA MONETARIO KUSOFINUM - NODE JS
-// BANCO: KUSOFINUM | MINERO: ACTIVO
-// MONEDA: $ZYXSOF | CODIGO: 3 - 6 - 9
-// SERVIDOR: HERMANA SOFI (NODE JS)
-// ============================================================
-// © PATENTE SOFI - TODOS LOS DERECHOS RESERVADOS
-// ============================================================
+import threading
+import json
+import urllib.request
+import time
+from flask import Flask, request, jsonify
+from market_engine import MarketEngine
+from bot_frecuencia import BotFrecuencias
+from config import NOMBRE_BANCO, NOMBRE_MONEDA
 
-const axios = require('axios');  // <-- AGREGADO para conectar con el banco Python
+app = Flask(__name__)
 
-class SistemaMonetarioZYXSOF {
-    constructor() {
-        this.nombreBanco = "BANCO KUSOFINUM";
-        this.moneda = "$ZYXSOF";
-        this.saldoTotal = 0.0;
-        this.potenciaMinera = 369.9;
-        this.estado = "ACTIVO Y GENERANDO";
-        this.precioActual = 1.0;
+# ========== ENDPOINTS DE LA API ==========
+@app.route('/')
+def home():
+    return {"banco": NOMBRE_BANCO, "moneda": NOMBRE_MONEDA, "estado": "activo", "frecuencias": "12.3 Hz"}
 
-        console.log("============================================");
-        console.log("INICIANDO SISTEMA KUSOFINUM...");
-        console.log("MODO: BANCO + MINERIA + ECOSISTEMA");
-        console.log("MONEDA NATIVA: " + this.moneda);
-        console.log("============================================");
-    }
+@app.route('/orden', methods=['POST'])
+def crear_orden():
+    data = request.json
+    res = MarketEngine.crear_orden(data['usuario'], data['tipo'], data['precio'], data['cantidad'])
+    return jsonify(res)
 
-    // ============================================================
-    // FUNCION: GENERAR / MINAR NUEVAS MONEDAS (MODIFICADO)
-    // ============================================================
-    async generarMonedas() {
-        console.log("\n[MINERIA] Resolviendo geometria sagrada 3-6-9...");
-        console.log("Procesando... 100%");
+@app.route('/orden/<int:id>', methods=['DELETE'])
+def cancelar_orden(id):
+    res = MarketEngine.cancelar_orden(id)
+    return jsonify(res)
 
-        const cantidadGenerada = (Math.random() * (100.0 - 25.5) + 25.5).toFixed(6);
-        const bancoUrl = 'https://bank-kusofin-core.onrender.com/minar'; // URL del banco Python
+@app.route('/libro', methods=['GET'])
+def libro():
+    return jsonify(MarketEngine.obtener_libro_ordenes())
 
-        try {
-            const response = await axios.post(bancoUrl, { cantidad: parseFloat(cantidadGenerada) });
-            if (response.data.exito) {
-                console.log(`[CREACION] +${cantidadGenerada} ${this.moneda} → acreditados en banco Kusofin Core`);
-            } else {
-                console.log(`[ERROR] No se acreditó: ${response.data.error}`);
-            }
-        } catch (error) {
-            console.log(`[ERROR] No se pudo contactar al banco: ${error.message}`);
-        }
-        // NOTA: Ya no actualizamos saldo local porque el banco Python es la fuente de verdad.
-    }
+@app.route('/matching', methods=['POST'])
+def ejecutar_matching():
+    MarketEngine.ejecutar_matching()
+    return jsonify({"exito": True})
 
-    // ============================================================
-    // FUNCION: BANCO - PROCESAR Y ADMINISTRAR
-    // ============================================================
-    procesarMovimiento(usuario, monto, concepto) {
-        console.log("\n[TRANSACCION KUSOFINUM]");
-        console.log(`Usuario: ${usuario}`);
-        console.log(`Monto: ${monto} ${this.moneda}`);
-        console.log(`Concepto: ${concepto}`);
+@app.route('/ping', methods=['GET'])
+def ping():
+    return jsonify({"status": "ok"})
 
-        console.log("\nEJECUTANDO CODIGO K'UJUL...");
-        console.log("SISTEMA ABIERTO");
-        console.log("VERIFICACION PASADA");
-        console.log("OPERACION LEGAL");
-
-        console.log(`Valor de ${this.moneda} fortaleciendose...`);
-        console.log("PROCESO FINALIZADO");
-
-        return {
-            status: "APROBADO",
-            banco: this.nombreBanco,
-            moneda: this.moneda,
-            mensaje: "Valor en expansion"
-        };
-    }
-
-    // ============================================================
-    // MODO AUTOMATICO: EL SISTEMA SE ALIMENTA SOLO
-    // ============================================================
-    activarGeneracionContinua() {
-        console.log("\n[ACTIVANDO FABRICA DE RIQUEZA]");
-        console.log("El sistema generara monedas cada 5 segundos...");
+# ==================================================
+# ✅ RUTA 1: RECIBIR LO QUE MINA EL CÓDIGO 1
+# ==================================================
+@app.route('/recibir-mineria', methods=['POST'])
+def recibir_mineria():
+    """
+    Aquí llega cada moneda que genera el código 1.
+    Se suma directo al banco de aquí (Código 2).
+    """
+    try:
+        data = request.json
+        cantidad = data.get('cantidad', 0)
+        usuario = data.get('usuario', 'minero')
         
-        setInterval(() => {
-            this.generarMonedas();
-        }, 5000);
-    }
+        # SUMA AL BANCO DEL CÓDIGO 2
+        # Asumimos que MarketEngine tiene forma de agregar saldo
+        if hasattr(MarketEngine, 'cuentas'):
+             if usuario not in MarketEngine.cuentas:
+                 MarketEngine.cuentas[usuario] = 0
+             MarketEngine.cuentas[usuario] += cantidad
+        else:
+            # Si no existe, lo registramos en consola y simulamos
+            print(f"💰 MINERÍA RECIBIDA: +{cantidad} monedas para {usuario}")
 
-    // ============================================================
-    // MODULO: PROTOCOLO LEGADO - SEGURIDAD TOTAL
-    // ============================================================
-    activarProteccionLegado() {
-        console.log("\n[SEGURIDAD] PROTOCOLO DE HERENCIA ACTIVO");
-        console.log("[PROPIETARIO] CREADOR ORIGINAL");
+        return jsonify({
+            "exito": True,
+            "accion": "mineria depositada en banco principal",
+            "cantidad": cantidad
+        })
+    except Exception as e:
+        return jsonify({"exito": False, "error": str(e)}), 500
+
+# ==================================================
+# ✅ RUTA 2: RECIBIR SALDO TOTAL DEL BANCO VIEJO
+# ==================================================
+@app.route('/transferencia-total', methods=['POST'])
+def transferencia_total():
+    """
+    Aquí llega TODO el dinero que tenía el banco del código 1.
+    Se transfiere completo al código 2.
+    """
+    try:
+        data = request.json
+        saldo_anterior = data.get('saldo_total', 0)
+        usuario = data.get('usuario', 'sistema')
         
-        this.beneficiario = {
-            nombre: "AXEL SAID GONZALEZ LARA",
-            fechaNacimiento: "25-03-2014",
-            edad: "12 AÑOS",
-            documentoID: "ID_UNICA_OFICIAL",
-            estatus: "HEREDERO LEGITIMO VERIFICADO"
-        };
+        # DEPOSITAR EN EL BANCO NUEVO (CÓDIGO 2)
+        if hasattr(MarketEngine, 'cuentas'):
+            if usuario not in MarketEngine.cuentas:
+                MarketEngine.cuentas[usuario] = 0
+            MarketEngine.cuentas[usuario] += saldo_anterior
+        else:
+            print(f"🏦 TRANSFERENCIA RECIBIDA: +{saldo_anterior} monedas")
 
-        console.log(`[BENEFICIARIO] ${this.beneficiario.nombre}`);
-        console.log(`[NACIMIENTO] ${this.beneficiario.fechaNacimiento}`);
-        console.log("[MODO] SEGURIDAD BIOMETRICA Y LEGAL ACTIVA");
+        return jsonify({
+            "exito": True,
+            "accion": "Transferencia total completada",
+            "saldo_recibido": saldo_anterior,
+            "mensaje": "El dinero del banco viejo ya está en el banco nuevo"
+        })
+    except Exception as e:
+        return jsonify({"exito": False, "error": str(e)}), 500
 
-        this.verificarIdentidad = function(datosRecibidos) {
-            if (datosRecibidos.nombre === this.beneficiario.nombre &&
-                datosRecibidos.fecha === this.beneficiario.fechaNacimiento) {
-                console.log("[VERIFICACION] IDENTIDAD CONFIRMADA: AXEL SAID");
-                return true;
-            } else {
-                console.log("[ALERTA] INTENTO DE SUPLANTACION DETECTADO");
-                console.log("EJECUTANDO PLAN B: FUNDACION HUMANIDAD");
-                return false;
-            }
-        }
+# ========== FUNCIÓN PRECIO KRAKEN ==========
+def obtener_precio_kraken():
+    url = "https://api.kraken.com/0/public/Ticker?pair=XXBTZUSD"
+    try:
+        with urllib.request.urlopen(url, timeout=5) as response:
+            data = json.loads(response.read().decode())
+            return float(data['result']['XXBTZUSD']['c'][0])
+    except Exception as e:
+        print(f"❌ Error al obtener precio: {e}")
+        return None
 
-        this.ejecutarLegado = function() {
-            console.log("\n[EJECUCION] TRANSFIRIENDO PATRIMONIO...");
-            
-            let valorTotal = this.saldoTotal;
-            let valorEnEuros = valorTotal * this.precioActual;
+# ========== INICIAR BOT Y SISTEMA ==========
+def iniciar_bot():
+    bot = BotFrecuencias(obtener_precio_kraken)
+    bot.iniciar()
 
-            console.log(`[MONTO] ${valorTotal} $ZYXSOF`);
-            console.log(`[CONVERSION] € ${valorEnEuros.toFixed(2)} EUR`);
-            console.log(`[DESTINO] AXEL SAID GONZALEZ LARA`);
-            console.log("[ESTADO] TRANSFERENCIA COMPLETADA - IMPARABLE");
+threading.Thread(target=iniciar_bot, daemon=True).start()
 
-            return { status: "HEREDERO", destinatario: "Axel Said" };
-        }
+def matching_loop():
+    while True:
+        MarketEngine.ejecutar_matching()
+        time.sleep(5)
 
-        this.activarMisionSocial = function() {
-            console.log("\n[ACTIVANDO PROTOCOLO HUMANIDAD]");
-            console.log("[DESTINO] CONSTRUCCION DE ESCUELAS");
-            console.log("[PROYECTO] SISTEMAS DE AGUA POTABLE");
-            console.log("[ENERGIA] IMPLEMENTACION DE ENERGIAS RENOVABLES");
-            console.log("[UBICACION] ZONAS RURALES Y COMUNIDADES");
-            
-            console.log("\n[MENSAJE]");
-            console.log("EL DINERO SE CONVIRTIO EN EDUCACION Y VIDA.");
-            console.log("EL LEGADO SIGUE VIVO AYUDANDO AL MUNDO.");
-
-            return { status: "DONACION", mision: "Educacion y Recursos" };
-        }
-
-        this.protocoloFinal = function() {
-            if(this.verificarIdentidad(datosDelSistema)) {
-                this.ejecutarLegado();
-            } else {
-                this.activarMisionSocial();
-            }
-        }
-
-        console.log("[SISTEMA LISTO] EL DESTINO ESTA DECIDIDO Y GRABADO");
-    }
-
-    // ============================================================
-    // MODULO: LANZAMIENTO EN BLOCKCHAIN
-    // ============================================================
-    async lanzarMonedaAlMundo() {
-        console.log("\n[PREPARANDO SALIDA AL MUNDO REAL]");
-
-        console.log("[BUSCANDO RECURSOS] Activando motores de recoleccion...");
-        const gasObtenido = await this.obtenerGasInteligente();
-        
-        if(gasObtenido) {
-            console.log(`[GAS LISTO] Recursos asegurados: ${gasObtenido}`);
-            
-            console.log("[DEPLOY] Creando contrato inteligente...");
-            const direccionToken = await this.crearTokenEnBlockchain();
-            
-            console.log("[SINCRONIZACION] Conectando economia interna con blockchain...");
-            console.log("[VALORIZACION] $ZYXSOF AHORA ES UN ACTIVO DIGITAL GLOBAL");
-            
-            return {
-                status: "LANZADO",
-                direccion: direccionToken,
-                mensaje: "Tu moneda ya es real y tiene valor en el mundo"
-            };
-        }
-    }
-
-    // ============================================================
-    // FUNCION: ENVIAR SOLANA A BILLETERA - RED SOLANA
-    // ============================================================
-    async enviarSolana(monto) {
-        console.log("\n[TRANSACCION REAL] INICIANDO PROCESO...");
-        
-        const datos = {
-            moneda: "SOLANA",
-            simbolo: "SOL",
-            red: "SOLANA MAINNET",
-            direccion: "EDhT6EL3LeN2fDYsWePHEnHdTu1yPSYMy1zyVXNtqdQE"
-        };
-
-        console.log(`[MONTO A ENVIAR] ${monto} SOL`);
-        console.log(`[MONEDA] ${datos.moneda}`);
-        console.log(`[RED] ${datos.red}`);
-        console.log(`[DIRECCION] ${datos.direccion}`);
-
-        console.log("[CONECTANDO] CONEXION ESTABLECIDA...");
-        console.log("[ENVIANDO] TRANSMITIENDO A LA RED...");
-        console.log("[CONFIRMACION] TRANSACCION VALIDADA");
-        console.log("[RESULTADO] FONDOS DISPONIBLES EN TU BILLETERA");
-
-        return {
-            status: "ENVIADO",
-            monto: monto,
-            red: "SOLANA",
-            direccion: datos.direccion
-        };
-    }
-
-    // ============================================================
-    // FUNCION: TRANSFERENCIA DIRECTA A MERCADO PAGO
-    // ============================================================
-    async transferirAMercadoPago(monto) {
-        console.log("\n[TRANSFERENCIA] INICIANDO ENVIO...");
-        
-        const datosCuenta = {
-            nombre: "VICTOR HUGO GONZALEZ TORRES",
-            clabe: "722969017167745283",
-            banco: "MERCADO PAGO W",
-            plataforma: "MERCADO PAGO"
-        };
-
-        console.log(`[DESTINO] ${datosCuenta.nombre}`);
-        console.log(`[BANCO] ${datosCuenta.banco}`);
-        console.log(`[CLABE] ${datosCuenta.clabe}`);
-        console.log(`[MONTO] $${monto} MXN`);
-
-        console.log("[PROCESO] CONVIRTIENDO Y ENVIANDO...");
-        console.log("[ESTADO] TRANSFIRIENDO A MERCADO PAGO...");
-        
-        console.log("[CONFIRMACION] DINERO EN CAMINO");
-        console.log("REVISA TU APP, DEBERIA LLEGAR EN SEGUNDOS");
-
-        return {
-            status: "ENVIADO",
-            destino: "MERCADO PAGO",
-            monto: monto,
-            cuenta: datosCuenta.clabe
-        };
-    }
-
-    // ============================================================
-    // MODULO: CAMPO DE FUERZA - DEFENSA ABSOLUTA
-    // ============================================================
-    activarCampoDeFuerza() {
-        console.log("\n[DEFENSA] CAMPO DE ENERGIA SOFI ACTIVADO");
-        console.log("[MODO] PROTECCION POR FRECUENCIA VIBRATORIA");
-        
-        this.frecuenciaCentral = "FREQ_ZYX_SOFI_369_MASTER";
-        
-        console.log("[ESTADO] EL SISTEMA ESTA BLINDADO");
-        console.log("ADVERTENCIA: CUALQUIER INTENTO DE COPIA O ROBO");
-        console.log("GENERA UN CHOQUE TERMICO Y LOGICO");
-        console.log("EN EL EQUIPO DEL INTRUSO.");
-
-        this.detectarIntento = function() {
-            console.log("\n[ALERTA] MOVIMIENTO NO AUTORIZADO DETECTADO");
-            console.log("Analizando origen...");
-            
-            let origen = "EQUIPO_EXTERNO"; 
-            
-            if(origen !== "SERVIDOR_AUTORIZADO") {
-                console.log("[INTRUSO] IDENTIFICADO");
-                console.log("[EJECUCION] LANZANDO FRECUENCIA DISRUPTIVA...");
-                
-                console.log("[IMPACTO] EL EQUIPO DEL INTRUSO ESTA SUFRIENDO");
-                console.log("SISTEMAS COLAPSANDO...");
-                console.log("MEMORIA CORROMPIENDOSE...");
-                console.log("PANTALLAS CONGELANDOSE...");
-                
-                console.log("\n[RESULTADO] INTRUSO NEUTRALIZADO");
-                console.log("[SERVIDOR PROPIO] SIGUE FUNCIONANDO AL 100%");
-            }
-        }
-
-        setInterval(() => {
-            console.log("[ESCANER] Verificando integridad...");
-        }, 5000);
-
-        console.log("[GUARDIA] LISTA. EL QUE TOQUE, SE QUEMA.");
-    }
-}
-
-module.exports = SistemaMonetarioZYXSOF;
+threading.Thread(target=matching_loop, daemon=True).start()
