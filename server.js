@@ -6,11 +6,11 @@
 //  Arquitectura distribuida: Node.js · Python · Java
 //  ─────────────────────────────────────────────────────────
 //  🔧 FIXES v6.0.1:
-//    [FIX-001] SyntaxError: PYTHON_URL declarada 2 veces
+//    [FIX-001] SyntaxError:https://bank-kusofin-core.onrender.com
 //    [FIX-002] PYTHON_CLAVE usada antes de ser declarada
-//    [FIX-003] Variables de banco separadas (BANCO_URL / BANCO_CLAVE)
+//    [FIX-003] Variables de banco separadas (BANCO_URLhttps://bank-kusofin-core.onrender.com / BANCO_CLAVE)
 //    [FIX-004] fetchJSON helper con timeout + retry + guard
-//    [FIX-005] Rutas banco protegidas si BANCO_URL no está definida
+//    [FIX-005] Rutas banco protegidas si BANCO_URL https://bank-kusofin-core.onrender.com
 //    [FIX-006] Advertencia en startup si Node < 18 (fetch nativo)
 //    [FIX-007] Todas las constantes consolidadas en sección única
 // ============================================================
