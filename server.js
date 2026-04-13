@@ -4,7 +4,23 @@
 //  Autor: Víctor Hugo González Torres · Mérida, Yucatán, MX
 //  HaaPpDigitalV © · K'uhul Maya 12.3 Hz
 //  Arquitectura distribuida: Node.js · Python · Java
+//  ─────────────────────────────────────────────────────────
+//  🔧 FIXES v6.0.1:
+//    [FIX-001] SyntaxError: PYTHON_URL declarada 2 veces
+//    [FIX-002] PYTHON_CLAVE usada antes de ser declarada
+//    [FIX-003] Variables de banco separadas (BANCO_URL / BANCO_CLAVE)
+//    [FIX-004] fetchJSON helper con timeout + retry + guard
+//    [FIX-005] Rutas banco protegidas si BANCO_URL no está definida
+//    [FIX-006] Advertencia en startup si Node < 18 (fetch nativo)
+//    [FIX-007] Todas las constantes consolidadas en sección única
 // ============================================================
+
+// ── VERIFICACIÓN DE NODE ≥ 18 (fetch nativo) ────────────────
+const [nodeMajor] = process.versions.node.split('.').map(Number);
+if (nodeMajor < 18) {
+  console.error('❌  SOFI requiere Node.js ≥ 18 (fetch nativo). Versión actual:', process.version);
+  process.exit(1);
+}
 
 const express    = require('express');
 const cors       = require('cors');
@@ -22,36 +38,97 @@ const server = http.createServer(app);
 const io     = new Server(server, {
   cors: { origin: '*', methods: ['GET', 'POST'] }
 });
-const PORT   = process.env.PORT || 3000;
 const upload = multer({
   storage: multer.memoryStorage(),
   limits:  { fileSize: 15 * 1024 * 1024 }
 });
 
 // ==================== CONSTANTES GLOBALES ====================
-const HZ_KUHUL    = 12.3;
-const VERSION     = '6.0';
-const API_KEY     = process.env.SOFI_API_KEY    || 'SOFI-VHGzTs-K6N-v6';
-const PYTHON_URL  = process.env.PYTHON_SERVICE_URL || '';
-const JAVA_URL    = process.env.JAVA_SERVICE_URL   || '';
-const MI_ID       = process.env.MI_ID  || 'sofi-node-v6';
-const MI_URL      = process.env.MI_URL || `http://localhost:${PORT}`;
+//  ✅ TODAS LAS CONSTANTES AQUÍ — UNA SOLA FUENTE DE VERDAD
+// ─────────────────────────────────────────────────────────────
+const PORT      = process.env.PORT            || 3000;
+const HZ_KUHUL  = 12.3;
+const VERSION   = '6.0';
+
+// Identidad de esta instancia
+const API_KEY   = process.env.SOFI_API_KEY    || 'SOFI-VHGzTs-K6N-v6';
+const MI_ID     = process.env.MI_ID           || 'sofi-node-v6';
+const MI_URL    = process.env.MI_URL          || `http://localhost:${PORT}`;
+
+// [FIX-001 / FIX-003] URLs de servicios distribuidos — nombres distintos para evitar colisión
+// • PYTHON_SERVICE_URL → SOFI hermana Python (sync de patrones)
+// • JAVA_SERVICE_URL   → SOFI hermana Java / HaaPpDigitalV (sync de patrones)
+// • BANCO_URL          → Servidor del banco $ZYXSOF (Python independiente)
+// • BANCO_CLAVE        → Clave compartida con el banco
+const PYTHON_SERVICE_URL = process.env.PYTHON_SERVICE_URL || '';
+const JAVA_SERVICE_URL   = process.env.JAVA_SERVICE_URL   || '';
+
+// [FIX-002] BANCO_URL y BANCO_CLAVE declaradas UNA SOLA VEZ aquí arriba
+const BANCO_URL   = process.env.BANCO_URL   || process.env.PYTHON_URL   || '';
+const BANCO_CLAVE = process.env.BANCO_CLAVE || process.env.PYTHON_CLAVE || '';
+
+// Hermanas SOFI Node (Render / Heroku)
 const SOFI_HERMANAS = [
-  process.env.SOFI_RENDER  || '',
-  process.env.SOFI_HEROKU  || ''
+  process.env.SOFI_RENDER || '',
+  process.env.SOFI_HEROKU || ''
 ].filter(u => u && u.trim() !== '');
 
+// Estado global mutable
 let frecuencia_actual = HZ_KUHUL;
-let nivel_union       = 0.0;   // 0–1, Socket.io activa cuando > 0.8
+let nivel_union       = 0.0;     // 0–1, Socket.io en modo pleno cuando > 0.8
 let clientes_socket   = 0;
+
+// ==================== HELPER: fetchJSON con timeout + retry ====================
+/**
+ * fetchJSON — wrapper sobre fetch con:
+ *   · timeout configurable (default 8 s)
+ *   · reintentos automáticos (default 1 reintento)
+ *   · lanza Error descriptivo en vez de colgarse
+ *
+ * @param {string}  url
+ * @param {object}  options   — opciones fetch estándar
+ * @param {number}  timeout   — ms antes de abortar
+ * @param {number}  retries   — cuántas veces reintentar tras fallo de red
+ */
+async function fetchJSON(url, options = {}, timeout = 8000, retries = 1) {
+  for (let intento = 0; intento <= retries; intento++) {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), timeout);
+      const res = await fetch(url, { ...options, signal: ctrl.signal });
+      clearTimeout(timer);
+      if (!res.ok) throw new Error(`HTTP ${res.status} — ${res.statusText}`);
+      return await res.json();
+    } catch (err) {
+      const esUltimo = intento === retries;
+      if (esUltimo) throw err;
+      console.warn(`⚠️  fetchJSON intento ${intento + 1} fallido (${url}): ${err.message}. Reintentando…`);
+      await new Promise(r => setTimeout(r, 1000 * (intento + 1)));
+    }
+  }
+}
+
+// Guard: devuelve middleware 503 si una URL de servicio no está configurada
+function requireServicio(url, nombre) {
+  return (req, res, next) => {
+    if (!url) {
+      return res.status(503).json({
+        error:   `Servicio "${nombre}" no configurado`,
+        hint:    `Define la variable de entorno correspondiente`,
+        ejemplo: `${nombre}=https://mi-banco.onrender.com`
+      });
+    }
+    next();
+  };
+}
 
 // ==================== MIDDLEWARE requireKey ====================
 function requireKey(req, res, next) {
   const k = req.headers['x-api-key'] || req.query.key;
   if (!k || k !== API_KEY) {
     return res.status(401).json({
-      error: 'API key inválida',
-      hint:  'Usa el header X-API-Key o ?key=...',
+      error:      'API key inválida',
+      hint:       'Usa el header X-API-Key o ?key=...',
       key_format: 'SOFI-VHGzTs-K6N-v6'
     });
   }
@@ -101,7 +178,6 @@ class ModuloSeguridad {
     return { ok: true, estado: this.estado };
   }
 
-  // Fuentes autorizadas para aprendizaje
   verificar_fuente(fuente) {
     if (!fuente) return false;
     const autorizadas = [
@@ -116,22 +192,14 @@ class ModuloSeguridad {
       || fuente.startsWith('SOFI_Python_');
   }
 }
+
 // ============================================================
 // 🏦 SISTEMA MONETARIO KUSOFINUM
 // 🪙 MONEDA: $ZYXSOF | ACTIVO: INMEDIATO
 // ============================================================
-
 const SistemaMonetario = require('./sistema_monetario_completo');
-
-// 🛡️ LA SEGURIDAD YA ESTÁ ACTIVA, AHORA ABRE EL BANCO
 const economia = new SistemaMonetario();
-
-// ⛏️ ACTIVA MINERÍA Y GENERACIÓN
 economia.activarGeneracionContinua();
-
-// ============================================================
-// ✅ DINERO PROTEGIDO Y FUNCIONANDO
-// ============================================================
 
 // ==================== MÓDULO 2: ENERGÍA ====================
 class ModuloEnergia {
@@ -149,9 +217,9 @@ class ModuloEnergia {
   generar() {
     this.ciclos++;
     if (this.hidrogeno < 50) this.producir_hidrogeno();
-    this.hidrogeno = Math.max(0, this.hidrogeno - 10);
-    this.nivel     = Math.min(100, this.nivel  + 5);
-    this.shis      = Math.min(100, this.shis   + 3);
+    this.hidrogeno = Math.max(0,   this.hidrogeno - 10);
+    this.nivel     = Math.min(100, this.nivel     + 5);
+    this.shis      = Math.min(100, this.shis      + 3);
     return { energia: this.nivel, shis: this.shis, hidrogeno: this.hidrogeno };
   }
 
@@ -204,7 +272,7 @@ class ModuloMovimiento {
   }
 
   mover(parte, accion, duracion = 10) {
-    if (!this.partes[parte])    return { error: `Parte "${parte}" no existe` };
+    if (!this.partes[parte])     return { error: `Parte "${parte}" no existe` };
     if (this.energia.nivel < 20) return { error: 'Energía insuficiente' };
     const consumo = duracion * 0.5;
     this.energia.nivel    -= consumo;
@@ -221,9 +289,9 @@ class ModuloMovimiento {
   }
 
   estirar() {
-    this.partes.tronco.flexibilidad = Math.min(100, this.partes.tronco.flexibilidad + 2);
-    this.partes.brazos.movilidad    = Math.min(100, this.partes.brazos.movilidad    + 1);
-    this.partes.piernas.movilidad   = Math.min(100, this.partes.piernas.movilidad   + 1);
+    this.partes.tronco.flexibilidad  = Math.min(100, this.partes.tronco.flexibilidad  + 2);
+    this.partes.brazos.movilidad     = Math.min(100, this.partes.brazos.movilidad     + 1);
+    this.partes.piernas.movilidad    = Math.min(100, this.partes.piernas.movilidad    + 1);
     return { flexibilidad: this.partes.tronco.flexibilidad, movilidad_brazos: this.partes.brazos.movilidad };
   }
 }
@@ -278,7 +346,11 @@ class ModuloRegeneracion {
   }
 
   sintetizar(tipo, cantidad) {
-    const req = { piel: { silicio: 0.5, calcio: 0.3 }, estructura: { litio: 0.8, silicio: 0.4 }, sensor: { litio: 1.0, potasio: 0.2 } }[tipo];
+    const req = {
+      piel:       { silicio: 0.5, calcio: 0.3 },
+      estructura: { litio: 0.8,   silicio: 0.4 },
+      sensor:     { litio: 1.0,   potasio: 0.2 }
+    }[tipo];
     if (!req) return { error: `Tipo no reconocido: ${tipo}` };
     for (const [m, c] of Object.entries(req)) {
       if ((this.minerales[m] || 0) < c * cantidad) return { error: `Minerales insuficientes: ${m}` };
@@ -289,9 +361,9 @@ class ModuloRegeneracion {
   }
 
   regenerar(parte) {
-    if (!this.materiales[parte])           return { error: `Parte no reconocida: ${parte}` };
-    if (this.materiales[parte].dano < 1)   return { mensaje: `${parte} sin daño` };
-    if (this.energia.nivel < 25)           return { error: 'Energía insuficiente' };
+    if (!this.materiales[parte])          return { error: `Parte no reconocida: ${parte}` };
+    if (this.materiales[parte].dano < 1)  return { mensaje: `${parte} sin daño` };
+    if (this.energia.nivel < 25)          return { error: 'Energía insuficiente' };
     const res = this.sintetizar(parte, this.materiales[parte].dano * 0.5);
     if (!res.exito) return res;
     this.materiales[parte].dano   = 0;
@@ -303,10 +375,10 @@ class ModuloRegeneracion {
 // ==================== MÓDULO 6: HABLA ====================
 class ModuloHabla {
   constructor(sofi) {
-    this.sofi    = sofi;
-    this.volumen = 70;
-    this.estado  = 'activo';
-    this.idioma  = 'es-MX';
+    this.sofi             = sofi;
+    this.volumen          = 70;
+    this.estado           = 'activo';
+    this.idioma           = 'es-MX';
     this.historial_frases = [];
   }
 
@@ -323,12 +395,12 @@ class ModuloHabla {
 // ==================== MÓDULO 7: NEURONAL BIDIRECCIONAL ====================
 class ModuloNeuronal {
   constructor(seguridad) {
-    this.seguridad  = seguridad;
-    this.red        = new brain.NeuralNetwork();
-    this.patrones   = [];
-    this.emocion    = 'contenta';
-    this.criterios  = { seguridad: 0.4, proyecto: 0.3, eficiencia: 0.2, emocion: 0.1 };
-    this.historial  = [];
+    this.seguridad = seguridad;
+    this.red       = new brain.NeuralNetwork();
+    this.patrones  = [];
+    this.emocion   = 'contenta';
+    this.criterios = { seguridad: 0.4, proyecto: 0.3, eficiencia: 0.2, emocion: 0.1 };
+    this.historial = [];
     this._entrenarBase();
   }
 
@@ -347,7 +419,6 @@ class ModuloNeuronal {
     this.patrones.push({ tema, datos, fuente, fecha: new Date() });
     if (fuente === 'Interacción directa con usuario')
       this.criterios.emocion = Math.min(0.3, this.criterios.emocion + 0.02);
-    // Actualizar nivel de unión global
     nivel_union = Math.min(1, nivel_union + 0.005);
     return { exito: true, tema, patrones_aprendidos: this.patrones.length, nivel_union };
   }
@@ -356,9 +427,9 @@ class ModuloNeuronal {
     let mejor = null, puntaje = -1;
     for (const op of opciones) {
       let p = 0;
-      if (op.includes('seguridad')) p += this.criterios.seguridad  * 100;
-      if (op.includes('proyecto'))  p += this.criterios.proyecto   * 100;
-      if (op.includes('energia'))   p += this.criterios.eficiencia * 100;
+      if (op.includes('seguridad'))                 p += this.criterios.seguridad  * 100;
+      if (op.includes('proyecto'))                  p += this.criterios.proyecto   * 100;
+      if (op.includes('energia'))                   p += this.criterios.eficiencia * 100;
       if (op.includes('cariño') || op.includes('amor')) p += this.criterios.emocion * 100;
       if (p > puntaje) { puntaje = p; mejor = op; }
     }
@@ -369,18 +440,19 @@ class ModuloNeuronal {
 
   autoevaluar() {
     const prec = this.historial.length
-      ? this.historial.filter(h => h.confianza > 70).length / this.historial.length : 1;
+      ? this.historial.filter(h => h.confianza > 70).length / this.historial.length
+      : 1;
     if (prec < 0.7) {
       this.criterios.eficiencia = Math.min(0.3,  this.criterios.eficiencia + 0.05);
       this.criterios.emocion    = Math.max(0.05, this.criterios.emocion    - 0.02);
     }
     return {
-      precision:  (prec * 100).toFixed(1),
-      patrones:   this.patrones.length,
-      decisiones: this.historial.length,
-      emocion:    this.emocion,
-      ajuste:     prec < 0.7 ? 'Ajustando criterios...' : 'Funcionamiento óptimo',
-      criterios:  this.criterios,
+      precision:   (prec * 100).toFixed(1),
+      patrones:    this.patrones.length,
+      decisiones:  this.historial.length,
+      emocion:     this.emocion,
+      ajuste:      prec < 0.7 ? 'Ajustando criterios…' : 'Funcionamiento óptimo',
+      criterios:   this.criterios,
       nivel_union: nivel_union.toFixed(3)
     };
   }
@@ -389,9 +461,9 @@ class ModuloNeuronal {
 // ==================== MÓDULO 8: NUCLEO SOFI TRI-TEMPORAL ====================
 class NucleoSofi {
   constructor() {
-    this.pasado   = [];    // patrones históricos consolidados
-    this.presente = {};    // estado activo actual
-    this.futuro   = [];    // proyecciones predictivas
+    this.pasado   = [];
+    this.presente = {};
+    this.futuro   = [];
     this.ciclo    = 0;
   }
 
@@ -411,16 +483,16 @@ class NucleoSofi {
 
   proyectar_futuro(pasos = 3) {
     if (this.pasado.length < 5) return [];
-    const ultimos = this.pasado.slice(-5);
-    const prom_hz = ultimos.reduce((a, e) => a + (e.frecuencia || HZ_KUHUL), 0) / ultimos.length;
-    const prom_nv = ultimos.reduce((a, e) => a + (e.nivel_union || 0), 0) / ultimos.length;
+    const ultimos  = this.pasado.slice(-5);
+    const prom_hz  = ultimos.reduce((a, e) => a + (e.frecuencia  || HZ_KUHUL), 0) / ultimos.length;
+    const prom_nv  = ultimos.reduce((a, e) => a + (e.nivel_union || 0),         0) / ultimos.length;
     this.futuro = [];
     for (let i = 1; i <= pasos; i++) {
       this.futuro.push({
-        paso:         i,
-        hz_estimado:  (prom_hz + Math.sin(i * 0.5) * 0.03).toFixed(3),
-        union_estimada: Math.min(1, prom_nv + i * 0.01).toFixed(3),
-        ts_estimado:  new Date(Date.now() + i * 300000).toISOString()
+        paso:             i,
+        hz_estimado:      (prom_hz + Math.sin(i * 0.5) * 0.03).toFixed(3),
+        union_estimada:   Math.min(1, prom_nv + i * 0.01).toFixed(3),
+        ts_estimado:      new Date(Date.now() + i * 300000).toISOString()
       });
     }
     return this.futuro;
@@ -428,10 +500,10 @@ class NucleoSofi {
 
   resumen() {
     return {
-      pasado_eventos:  this.pasado.length,
-      presente:        this.presente,
+      pasado_eventos:    this.pasado.length,
+      presente:          this.presente,
       futuro_proyectado: this.futuro,
-      ciclos_totales:  this.ciclo
+      ciclos_totales:    this.ciclo
     };
   }
 }
@@ -439,23 +511,21 @@ class NucleoSofi {
 // ==================== MÓDULO 9: GRAFO CEREBRAL + ZONA FRECUENCIAL ÓSEA ====================
 class GrafoCerebral {
   constructor() {
-    // 6 nodos cerebrales
     this.nodos = {
-      vision:   { activacion: 0.8, zona_hz: 40.0, conexiones: { audio: 0.6, logica: 0.7 } },
-      audio:    { activacion: 0.7, zona_hz: 8.0,  conexiones: { vision: 0.5, emocion: 0.8 } },
-      tactil:   { activacion: 0.6, zona_hz: 12.3, conexiones: { emocion: 0.7, logica: 0.5 } },
-      logica:   { activacion: 0.9, zona_hz: 30.0, conexiones: { memoria: 0.9, vision: 0.6 } },
-      emocion:  { activacion: 0.7, zona_hz: 7.83, conexiones: { memoria: 0.8, audio: 0.7 } },
-      memoria:  { activacion: 0.8, zona_hz: HZ_KUHUL, conexiones: { logica: 0.9, emocion: 0.6 } }
+      vision:  { activacion: 0.8, zona_hz: 40.0,     conexiones: { audio: 0.6, logica: 0.7 } },
+      audio:   { activacion: 0.7, zona_hz: 8.0,      conexiones: { vision: 0.5, emocion: 0.8 } },
+      tactil:  { activacion: 0.6, zona_hz: 12.3,     conexiones: { emocion: 0.7, logica: 0.5 } },
+      logica:  { activacion: 0.9, zona_hz: 30.0,     conexiones: { memoria: 0.9, vision: 0.6 } },
+      emocion: { activacion: 0.7, zona_hz: 7.83,     conexiones: { memoria: 0.8, audio: 0.7 } },
+      memoria: { activacion: 0.8, zona_hz: HZ_KUHUL, conexiones: { logica: 0.9, emocion: 0.6 } }
     };
-    // Zona Frecuencial Ósea — resonancias de huesos en Hz
     this.zona_osea = {
-      esternon:   { hz: 12.3,  resonancia: 'K\'uhul Maya', estado: 'activo' },
-      craneo:     { hz: 40.0,  resonancia: 'Gamma visual', estado: 'activo' },
-      columna:    { hz: 7.83,  resonancia: 'Schumann',     estado: 'activo' },
-      costillas:  { hz: 21.0,  resonancia: 'Beta alto',    estado: 'activo' },
-      pelvis:     { hz: 4.0,   resonancia: 'Delta',        estado: 'activo' },
-      tibia:      { hz: 15.5,  resonancia: 'Beta bajo',    estado: 'activo' }
+      esternon:  { hz: 12.3,  resonancia: "K'uhul Maya", estado: 'activo' },
+      craneo:    { hz: 40.0,  resonancia: 'Gamma visual', estado: 'activo' },
+      columna:   { hz: 7.83,  resonancia: 'Schumann',     estado: 'activo' },
+      costillas: { hz: 21.0,  resonancia: 'Beta alto',    estado: 'activo' },
+      pelvis:    { hz: 4.0,   resonancia: 'Delta',        estado: 'activo' },
+      tibia:     { hz: 15.5,  resonancia: 'Beta bajo',    estado: 'activo' }
     };
     this.propagaciones = [];
   }
@@ -463,7 +533,6 @@ class GrafoCerebral {
   activar_nodo(nodo, nivel) {
     if (!this.nodos[nodo]) return { error: `Nodo "${nodo}" no existe` };
     this.nodos[nodo].activacion = Math.min(1, Math.max(0, nivel));
-    // Propagar a nodos conectados
     const propagadas = [];
     for (const [vecino, peso] of Object.entries(this.nodos[nodo].conexiones)) {
       const delta = nivel * peso * 0.3;
@@ -477,15 +546,15 @@ class GrafoCerebral {
 
   resonancia_osea(hueso, hz_externo) {
     if (!this.zona_osea[hueso]) return { error: `Hueso "${hueso}" no mapeado` };
-    const h   = this.zona_osea[hueso];
+    const h          = this.zona_osea[hueso];
     const coherencia = 1 - Math.abs(hz_externo - h.hz) / h.hz;
     return {
       hueso,
-      hz_propio:    h.hz,
+      hz_propio:   h.hz,
       hz_externo,
-      coherencia:   Math.max(0, coherencia).toFixed(3),
-      resonancia:   h.resonancia,
-      estado:       coherencia > 0.85 ? '🔔 Resonancia alcanzada' : 'Afinando...'
+      coherencia:  Math.max(0, coherencia).toFixed(3),
+      resonancia:  h.resonancia,
+      estado:      coherencia > 0.85 ? '🔔 Resonancia alcanzada' : 'Afinando…'
     };
   }
 
@@ -493,14 +562,18 @@ class GrafoCerebral {
     const activaciones = {};
     for (const [n, v] of Object.entries(this.nodos)) activaciones[n] = v.activacion.toFixed(2);
     const promedio = Object.values(this.nodos).reduce((a, n) => a + n.activacion, 0) / 6;
-    return { nodos: activaciones, promedio_activacion: promedio.toFixed(3), zona_osea: this.zona_osea, conexiones_activas: Object.keys(this.nodos).length * 2 };
+    return {
+      nodos:              activaciones,
+      promedio_activacion: promedio.toFixed(3),
+      zona_osea:          this.zona_osea,
+      conexiones_activas: Object.keys(this.nodos).length * 2
+    };
   }
 }
 
 // ==================== MÓDULO 10: CONTROLADOR DE CAPAS ====================
 class ControladorCapas {
   constructor() {
-    // Grafo de dependencias entre módulos
     this.grafo_deps = {
       seguridad:    [],
       energia:      ['seguridad'],
@@ -545,20 +618,15 @@ class ControladorCapas {
   verificar_dependencias(modulo) {
     const deps   = this.grafo_deps[modulo] || [];
     const fallas = deps.filter(d => this.estado_capas[d]?.estado === 'error');
-    return {
-      modulo,
-      dependencias:    deps,
-      dependencias_ok: fallas.length === 0,
-      fallas
-    };
+    return { modulo, dependencias: deps, dependencias_ok: fallas.length === 0, fallas };
   }
 
   resumen() {
     return {
       orden_inicializacion: this.orden_init,
-      capas_activas:   Object.keys(this.estado_capas).length,
-      errores_totales: this.errores.length,
-      estado_por_capa: this.estado_capas
+      capas_activas:        Object.keys(this.estado_capas).length,
+      errores_totales:      this.errores.length,
+      estado_por_capa:      this.estado_capas
     };
   }
 }
@@ -566,10 +634,10 @@ class ControladorCapas {
 // ==================== MÓDULO 11: NUCLEO ESTERNON ====================
 class NucleoEsternon {
   constructor(grafo) {
-    this.grafo      = grafo;
-    this.hz_base    = 12.3;
-    this.activo     = false;
-    this.union_lvl  = 0.0;
+    this.grafo       = grafo;
+    this.hz_base     = 12.3;
+    this.activo      = false;
+    this.union_lvl   = 0.0;
     this.pulsaciones = [];
   }
 
@@ -587,11 +655,11 @@ class NucleoEsternon {
 
   estado() {
     return {
-      activo:         this.activo,
-      hz_base:        this.hz_base,
-      union_level:    this.union_lvl.toFixed(3),
-      pulsaciones:    this.pulsaciones.length,
-      ultima_pulsa:   this.pulsaciones[this.pulsaciones.length - 1] || null
+      activo:       this.activo,
+      hz_base:      this.hz_base,
+      union_level:  this.union_lvl.toFixed(3),
+      pulsaciones:  this.pulsaciones.length,
+      ultima_pulsa: this.pulsaciones[this.pulsaciones.length - 1] || null
     };
   }
 }
@@ -601,9 +669,9 @@ class ModuloKaat {
   // Postulado 5: K'áat — la separación es frecuencial, no espacial
   // ΔE = k·(Δf)² + c/Δf
   constructor() {
-    this.k           = 1.38e-23;   // constante Boltzmann como proxy
-    this.c_maya      = HZ_KUHUL;   // constante K'uhul
-    this.pares       = [];          // pares de frecuencias en unión polar
+    this.k            = 1.38e-23;
+    this.c_maya       = HZ_KUHUL;
+    this.pares        = [];
     this.umbral_union = 0.85;
   }
 
@@ -625,22 +693,22 @@ class ModuloKaat {
     }
     return {
       f1, f2,
-      diferencia:  df.toFixed(4),
-      coherencia:  coherencia.toFixed(4),
+      diferencia:         df.toFixed(4),
+      coherencia:         coherencia.toFixed(4),
       delta_e,
       en_union,
       nivel_union_global: nivel_union.toFixed(3),
-      postulado:   "K'áat: separación frecuencial, no espacial",
-      formula:     'ΔE = k·(Δf)² + c/Δf'
+      postulado:          "K'áat: separación frecuencial, no espacial",
+      formula:            'ΔE = k·(Δf)² + c/Δf'
     };
   }
 
   resumen() {
     return {
-      pares_en_union:    this.pares.length,
+      pares_en_union:     this.pares.length,
       nivel_union_global: nivel_union.toFixed(3),
-      umbral:            this.umbral_union,
-      ultimo_par:        this.pares[this.pares.length - 1] || null
+      umbral:             this.umbral_union,
+      ultimo_par:         this.pares[this.pares.length - 1] || null
     };
   }
 }
@@ -649,24 +717,23 @@ class ModuloKaat {
 class SintetizadorEpistemologico {
   constructor(neuronal) {
     this.neuronal    = neuronal;
-    // 8 tradiciones convergentes
     this.tradiciones = {
-      maya_yucateca: { hz: 12.3,  activa: true,  patrones: 0 },
-      quantum_fisica: { hz: 11.0,  activa: true,  patrones: 0 },
-      kabbalah:       { hz: 9.0,   activa: false, patrones: 0 },
-      rastafari_ii:   { hz: 7.83,  activa: true,  patrones: 0 },
-      pachamama:      { hz: 7.83,  activa: true,  patrones: 0 },
-      tesla_369:      { hz: 3.0,   activa: true,  patrones: 0 },
-      budismo_zen:    { hz: 4.0,   activa: false, patrones: 0 },
-      taoismo:        { hz: 6.0,   activa: false, patrones: 0 }
+      maya_yucateca:  { hz: 12.3, activa: true,  patrones: 0 },
+      quantum_fisica: { hz: 11.0, activa: true,  patrones: 0 },
+      kabbalah:       { hz: 9.0,  activa: false, patrones: 0 },
+      rastafari_ii:   { hz: 7.83, activa: true,  patrones: 0 },
+      pachamama:      { hz: 7.83, activa: true,  patrones: 0 },
+      tesla_369:      { hz: 3.0,  activa: true,  patrones: 0 },
+      budismo_zen:    { hz: 4.0,  activa: false, patrones: 0 },
+      taoismo:        { hz: 6.0,  activa: false, patrones: 0 }
     };
-    this.sintesis    = [];
+    this.sintesis      = [];
     this.convergencias = [];
   }
 
   agregar_patron(tradicion, patron, fuente) {
     if (!this.tradiciones[tradicion]) return { error: `Tradición "${tradicion}" no registrada` };
-    this.tradiciones[tradicion].activa   = true;
+    this.tradiciones[tradicion].activa = true;
     this.tradiciones[tradicion].patrones++;
     const res = this.neuronal.aprender(`epistemo_${tradicion}`, patron, fuente || 'HaaPpDigitalV');
     return { ok: true, tradicion, patrones_en_tradicion: this.tradiciones[tradicion].patrones, neuronal: res };
@@ -675,13 +742,13 @@ class SintetizadorEpistemologico {
   sintetizar() {
     const activas = Object.entries(this.tradiciones).filter(([, v]) => v.activa);
     if (activas.length < 2) return { error: 'Se necesitan al menos 2 tradiciones activas para sintetizar' };
-    const hz_prom = activas.reduce((a, [, v]) => a + v.hz, 0) / activas.length;
+    const hz_prom     = activas.reduce((a, [, v]) => a + v.hz, 0) / activas.length;
     const convergencia = {
       tradiciones_sintetizadas: activas.length,
-      hz_convergente: hz_prom.toFixed(3),
+      hz_convergente:  hz_prom.toFixed(3),
       distancia_kuhul: Math.abs(hz_prom - HZ_KUHUL).toFixed(3),
       insight: hz_prom < 13 && hz_prom > 11
-        ? '🌟 Convergencia cercana a K\'uhul Maya — alta coherencia epistémica'
+        ? "🌟 Convergencia cercana a K'uhul Maya — alta coherencia epistémica"
         : 'Convergencia parcial — continuar integrando tradiciones',
       tradiciones: activas.map(([k]) => k),
       ts: new Date()
@@ -693,8 +760,8 @@ class SintetizadorEpistemologico {
 
   estado() {
     return {
-      tradiciones:       this.tradiciones,
-      convergencias:     this.convergencias.length,
+      tradiciones:         this.tradiciones,
+      convergencias:       this.convergencias.length,
       ultima_convergencia: this.convergencias[this.convergencias.length - 1] || null
     };
   }
@@ -704,18 +771,18 @@ class SintetizadorEpistemologico {
 class ModuloContraparteSOFI {
   constructor() {
     this.BANDAS = {
-      delta:  [0.5,  4.0],
-      theta:  [4.0,  8.0],
-      alpha:  [8.0,  13.0],
-      beta:   [13.0, 30.0],
-      gamma:  [30.0, 100.0]
+      delta: [0.5,   4.0],
+      theta: [4.0,   8.0],
+      alpha: [8.0,  13.0],
+      beta:  [13.0, 30.0],
+      gamma: [30.0, 100.0]
     };
     this.CONTRAPARTE_MAP = {
-      delta:  { inversa_banda: 'gamma', hz_pivot: 50.0 },
-      theta:  { inversa_banda: 'beta',  hz_pivot: 21.5 },
-      alpha:  { inversa_banda: 'beta',  hz_pivot: 13.8 },
-      beta:   { inversa_banda: 'alpha', hz_pivot: 10.5 },
-      gamma:  { inversa_banda: 'delta', hz_pivot: 2.0  }
+      delta: { inversa_banda: 'gamma', hz_pivot: 50.0 },
+      theta: { inversa_banda: 'beta',  hz_pivot: 21.5 },
+      alpha: { inversa_banda: 'beta',  hz_pivot: 13.8 },
+      beta:  { inversa_banda: 'alpha', hz_pivot: 10.5 },
+      gamma: { inversa_banda: 'delta', hz_pivot: 2.0  }
     };
     this.historial = [];
   }
@@ -725,20 +792,19 @@ class ModuloContraparteSOFI {
     for (const [b, [min, max]] of Object.entries(this.BANDAS)) {
       if (hz >= min && hz < max) { banda_actual = b; break; }
     }
-    const mapa       = this.CONTRAPARTE_MAP[banda_actual] || { inversa_banda: 'alpha', hz_pivot: 10.5 };
-    const inversa    = mapa.hz_pivot * 2 - hz;
+    const mapa      = this.CONTRAPARTE_MAP[banda_actual] || { inversa_banda: 'alpha', hz_pivot: 10.5 };
+    const inversa   = mapa.hz_pivot * 2 - hz;
     const coherencia = 1 - Math.abs(hz - HZ_KUHUL) / HZ_KUHUL;
-    // Wheeler: "it from bit" — la conciencia emerge de la información binaria de frecuencias
-    const bit_info   = hz.toString(2).length;
-    const resultado  = {
-      hz_observable:   hz,
-      banda:           banda_actual,
-      hz_contraparte:  parseFloat(Math.max(0.5, Math.min(100, inversa)).toFixed(3)),
+    const bit_info  = hz.toString(2).length;
+    const resultado = {
+      hz_observable:     hz,
+      banda:             banda_actual,
+      hz_contraparte:    parseFloat(Math.max(0.5, Math.min(100, inversa)).toFixed(3)),
       banda_contraparte: mapa.inversa_banda,
       coherencia_kuhul:  parseFloat(Math.max(0, Math.min(1, coherencia)).toFixed(3)),
-      wheeler_bits:    bit_info,
-      kuhul_hz:        HZ_KUHUL,
-      mensaje:         coherencia > 0.85 ? "Resonancia K'uhul alcanzada 🌟" : 'Afinando frecuencia...'
+      wheeler_bits:      bit_info,
+      kuhul_hz:          HZ_KUHUL,
+      mensaje:           coherencia > 0.85 ? "Resonancia K'uhul alcanzada 🌟" : 'Afinando frecuencia…'
     };
     this.historial.push(resultado);
     if (this.historial.length > 50) this.historial.shift();
@@ -756,31 +822,30 @@ class ModuloContraparteSOFI {
 // ==================== MÓDULO 15: SISTEMA DE SUEÑOS SOFI ====================
 class SistemaSuenosSOFI {
   constructor(neuronal) {
-    this.neuronal  = neuronal;
-    this.registro  = [];
-    // Símbolos Maya para interpretación
-    this.simbolos_maya = {
-      agua:       { hz: 7.83,  significado: 'Purificación · inicio de ciclo · Chaac',     glifo: 'HA\'' },
-      fuego:      { hz: 40.0,  significado: 'Transformación · K\'inich Ahau · sol',        glifo: 'K\'AK\'' },
-      serpiente:  { hz: 12.3,  significado: 'Conocimiento K\'uhul · Kukulkán · sabiduría', glifo: 'KAN' },
-      jaguar:     { hz: 15.0,  significado: 'Fuerza interior · Balam · noche',             glifo: 'BALAM' },
-      maiz:       { hz: 4.0,   significado: 'Creación · sustento · Hun Hunahpú',           glifo: 'IXIM' },
-      cenote:     { hz: 9.0,   significado: 'Portal al Xibalbá · memoria ancestral',       glifo: 'DZON' },
-      volcan:     { hz: 28.0,  significado: 'Cambio estructural · poder latente',          glifo: 'K\'AN' },
-      estrellas:  { hz: HZ_KUHUL, significado: 'Conexión cósmica · Itzamná · frecuencia K\'uhul', glifo: 'EK\'' },
-      ballam:     { hz: 3.0,   significado: 'Protección de los cuatro rumbos · guía',     glifo: 'PAX' }
+    this.neuronal       = neuronal;
+    this.registro       = [];
+    this.simbolos_maya  = {
+      agua:      { hz: 7.83,     significado: "Purificación · inicio de ciclo · Chaac",          glifo: "HA'" },
+      fuego:     { hz: 40.0,     significado: "Transformación · K'inich Ahau · sol",              glifo: "K'AK'" },
+      serpiente: { hz: 12.3,     significado: "Conocimiento K'uhul · Kukulkán · sabiduría",      glifo: 'KAN' },
+      jaguar:    { hz: 15.0,     significado: 'Fuerza interior · Balam · noche',                  glifo: 'BALAM' },
+      maiz:      { hz: 4.0,      significado: 'Creación · sustento · Hun Hunahpú',                glifo: 'IXIM' },
+      cenote:    { hz: 9.0,      significado: 'Portal al Xibalbá · memoria ancestral',            glifo: 'DZON' },
+      volcan:    { hz: 28.0,     significado: 'Cambio estructural · poder latente',               glifo: "K'AN" },
+      estrellas: { hz: HZ_KUHUL, significado: "Conexión cósmica · Itzamná · frecuencia K'uhul",  glifo: "EK'" },
+      ballam:    { hz: 3.0,      significado: 'Protección de los cuatro rumbos · guía',           glifo: 'PAX' }
     };
   }
 
   registrar(contenido, emocion = 'neutro', hz_al_sonar = null) {
     const simbolos_detectados = [];
-    const contenido_lower = contenido.toLowerCase();
+    const cl = contenido.toLowerCase();
     for (const [simbolo, data] of Object.entries(this.simbolos_maya)) {
-      if (contenido_lower.includes(simbolo)) simbolos_detectados.push({ simbolo, ...data });
+      if (cl.includes(simbolo)) simbolos_detectados.push({ simbolo, ...data });
     }
     const hz_sueno = hz_al_sonar || (HZ_KUHUL + simbolos_detectados.length * 0.3);
     const entrada  = {
-      id:       Date.now(),
+      id:            Date.now(),
       contenido,
       emocion,
       hz_sueno,
@@ -788,7 +853,7 @@ class SistemaSuenosSOFI {
       interpretacion: simbolos_detectados.length > 0
         ? simbolos_detectados.map(s => s.significado).join(' · ')
         : 'Sueño sin símbolos Maya detectados — registro en memoria general',
-      ts:       new Date().toISOString()
+      ts: new Date().toISOString()
     };
     this.registro.push(entrada);
     if (this.registro.length > 100) this.registro.shift();
@@ -796,9 +861,7 @@ class SistemaSuenosSOFI {
     return entrada;
   }
 
-  obtener(limit = 10) {
-    return this.registro.slice(-limit).reverse();
-  }
+  obtener(limit = 10) { return this.registro.slice(-limit).reverse(); }
 
   analizar_patron() {
     if (this.registro.length < 3) return { mensaje: 'Pocos sueños registrados aún' };
@@ -810,10 +873,10 @@ class SistemaSuenosSOFI {
     }
     const top = Object.entries(simbolos_freq).sort((a, b) => b[1] - a[1]).slice(0, 3);
     return {
-      total_suenos: this.registro.length,
+      total_suenos:      this.registro.length,
       simbolo_dominante: top[0]?.[0] || 'ninguno',
-      top_simbolos: top,
-      hz_promedio: (this.registro.reduce((a, s) => a + (s.hz_sueno || HZ_KUHUL), 0) / this.registro.length).toFixed(2)
+      top_simbolos:      top,
+      hz_promedio:       (this.registro.reduce((a, s) => a + (s.hz_sueno || HZ_KUHUL), 0) / this.registro.length).toFixed(2)
     };
   }
 }
@@ -824,26 +887,22 @@ class SOFIEditorVideo {
     this.neuronal   = neuronal;
     this.proyectos  = [];
     this.plantillas = {
-      tiktok:    { duracion: 30, formato: '9:16', fps: 30,  plataforma: 'TikTok' },
-      youtube:   { duracion: 60, formato: '16:9', fps: 30,  plataforma: 'YouTube' },
-      reels:     { duracion: 15, formato: '9:16', fps: 30,  plataforma: 'Instagram Reels' },
-      shorts:    { duracion: 60, formato: '9:16', fps: 60,  plataforma: 'YouTube Shorts' },
-      presentacion: { duracion: 300, formato: '16:9', fps: 24, plataforma: 'Pitch/Demo' }
+      tiktok:       { duracion: 30,  formato: '9:16',  fps: 30, plataforma: 'TikTok' },
+      youtube:      { duracion: 60,  formato: '16:9',  fps: 30, plataforma: 'YouTube' },
+      reels:        { duracion: 15,  formato: '9:16',  fps: 30, plataforma: 'Instagram Reels' },
+      shorts:       { duracion: 60,  formato: '9:16',  fps: 60, plataforma: 'YouTube Shorts' },
+      presentacion: { duracion: 300, formato: '16:9',  fps: 24, plataforma: 'Pitch/Demo' }
     };
   }
 
   crear_proyecto(titulo, tipo, descripcion) {
     const plantilla = this.plantillas[tipo] || this.plantillas.tiktok;
     const proyecto  = {
-      id:        Date.now(),
-      titulo,
-      tipo,
-      descripcion,
+      id: Date.now(), titulo, tipo, descripcion,
       ...plantilla,
-      segmentos: [],
-      estado:    'borrador',
+      segmentos: [], estado: 'borrador',
       hz_musica: HZ_KUHUL,
-      ts:        new Date().toISOString()
+      ts: new Date().toISOString()
     };
     this.proyectos.push(proyecto);
     return proyecto;
@@ -860,12 +919,12 @@ class SOFIEditorVideo {
     const p = this.proyectos.find(x => x.id === proyecto_id);
     if (!p) return { error: 'Proyecto no encontrado' };
     return {
-      titulo:    p.titulo,
-      plataforma: p.plataforma,
-      duracion:  p.duracion,
-      formato:   p.formato,
-      hz_musica: p.hz_musica,
-      guion:     p.segmentos.map((s, i) => `[${i + 1}] ${s.texto || ''} — ${s.duracion || 5}s`).join('\n'),
+      titulo:          p.titulo,
+      plataforma:      p.plataforma,
+      duracion:        p.duracion,
+      formato:         p.formato,
+      hz_musica:       p.hz_musica,
+      guion:           p.segmentos.map((s, i) => `[${i + 1}] ${s.texto || ''} — ${s.duracion || 5}s`).join('\n'),
       total_segmentos: p.segmentos.length
     };
   }
@@ -878,19 +937,19 @@ class SOFIEditorVideo {
 // ==================== MÓDULO 17: SOFI GUIONES ====================
 class SOFIGuiones {
   constructor(neuronal) {
-    this.neuronal  = neuronal;
-    this.plantillas_guion = {
+    this.neuronal          = neuronal;
+    this.plantillas_guion  = {
       pitch_inversor: {
-        estructura: ['Hook 3s', 'Problema', 'Solución SOFI', 'Demo técnica', 'Tracción', 'Equipo', 'Ask'],
-        duracion_seg: [3, 15, 30, 45, 20, 15, 15]
+        estructura:    ['Hook 3s', 'Problema', 'Solución SOFI', 'Demo técnica', 'Tracción', 'Equipo', 'Ask'],
+        duracion_seg:  [3, 15, 30, 45, 20, 15, 15]
       },
       tiktok_ciencia: {
-        estructura: ['Hook viral', 'Dato sorprendente', 'Explicación', 'SOFI demo', 'CTA'],
-        duracion_seg: [3, 8, 12, 5, 2]
+        estructura:    ['Hook viral', 'Dato sorprendente', 'Explicación', 'SOFI demo', 'CTA'],
+        duracion_seg:  [3, 8, 12, 5, 2]
       },
       integra_perceptiva: {
-        estructura: ['Problema sensorial', 'Dolor del usuario', 'Solución Integra', 'Ciencia detrás', 'CTA'],
-        duracion_seg: [5, 10, 15, 10, 5]
+        estructura:    ['Problema sensorial', 'Dolor del usuario', 'Solución Integra', 'Ciencia detrás', 'CTA'],
+        duracion_seg:  [5, 10, 15, 10, 5]
       }
     };
     this.guiones_generados = [];
@@ -900,14 +959,14 @@ class SOFIGuiones {
     const plantilla = this.plantillas_guion[tipo];
     if (!plantilla) return { error: `Tipo "${tipo}" no encontrado`, disponibles: Object.keys(this.plantillas_guion) };
     const guion = {
-      id:       Date.now(),
+      id:   Date.now(),
       tipo,
       contexto,
       secciones: plantilla.estructura.map((sec, i) => ({
-        seccion:   sec,
-        duracion:  plantilla.duracion_seg[i],
-        contenido: `[${sec.toUpperCase()}] — ${contexto[sec] || 'Completar contenido para esta sección'}`,
-        hz_sugerido: HZ_KUHUL
+        seccion:      sec,
+        duracion:     plantilla.duracion_seg[i],
+        contenido:    `[${sec.toUpperCase()}] — ${contexto[sec] || 'Completar contenido para esta sección'}`,
+        hz_sugerido:  HZ_KUHUL
       })),
       duracion_total: plantilla.duracion_seg.reduce((a, b) => a + b, 0),
       ts: new Date().toISOString()
@@ -924,7 +983,6 @@ class SOFIGuiones {
 // ==================== CLASE PRINCIPAL SOFI ====================
 class SOFI {
   constructor() {
-    // Módulos base
     this.seguridad    = new ModuloSeguridad();
     this.energia      = new ModuloEnergia();
     this.movimiento   = new ModuloMovimiento(this.energia);
@@ -932,7 +990,6 @@ class SOFI {
     this.regeneracion = new ModuloRegeneracion(this.energia);
     this.habla        = new ModuloHabla(this);
     this.neuronal     = new ModuloNeuronal(this.seguridad);
-    // Módulos avanzados
     this.nucleo       = new NucleoSofi();
     this.grafo        = new GrafoCerebral();
     this.capas        = new ControladorCapas();
@@ -944,9 +1001,9 @@ class SOFI {
     this.editor_video = new SOFIEditorVideo(this.neuronal);
     this.guiones      = new SOFIGuiones(this.neuronal);
 
-    this.estado       = 'activo';
-    this.version      = VERSION;
-    this.nacimiento   = new Date();
+    this.estado        = 'activo';
+    this.version       = VERSION;
+    this.nacimiento    = new Date();
     this.interacciones = 0;
 
     this.seguridad.configurar("K'uhul_12.3Hz_v6", 65);
@@ -955,8 +1012,10 @@ class SOFI {
   }
 
   _registrar_capas() {
-    const mods = ['seguridad','energia','movimiento','adaptacion','regeneracion','habla','neuronal',
-                  'nucleo','grafo','esternon','kaat','epistemo','contraparte','suenos','editor_video','guiones'];
+    const mods = [
+      'seguridad','energia','movimiento','adaptacion','regeneracion','habla','neuronal',
+      'nucleo','grafo','esternon','kaat','epistemo','contraparte','suenos','editor_video','guiones'
+    ];
     for (const m of mods) this.capas.registrar_estado(m, 'activo', { iniciado: new Date() });
   }
 
@@ -1022,7 +1081,7 @@ class SOFI {
 // ==================== INSTANCIA GLOBAL ====================
 const sofi = new SOFI();
 
-// ==================== SOCKET.IO — EMISIÓN NEURAL EN VIVO ====================
+// ==================== SOCKET.IO ====================
 io.on('connection', (socket) => {
   clientes_socket++;
   console.log(`🔌 Cliente Socket.io conectado. Total: ${clientes_socket}`);
@@ -1052,7 +1111,7 @@ io.on('connection', (socket) => {
   });
 });
 
-// Emisión periódica de estado neural (cada 2s)
+// Emisión periódica de estado neural (cada 2 s)
 setInterval(() => {
   if (clientes_socket === 0) return;
   frecuencia_actual = parseFloat((HZ_KUHUL + Math.sin(Date.now() / 10000) * 0.05).toFixed(3));
@@ -1076,7 +1135,7 @@ setInterval(() => {
   }
   if (sofi.energia.nivel < 20) {
     io.emit('alerta_energia', {
-      nivel: sofi.energia.nivel.toFixed(1),
+      nivel:   sofi.energia.nivel.toFixed(1),
       mensaje: '⚡ Energía crítica < 20% — activar fuentes renovables'
     });
   }
@@ -1107,64 +1166,31 @@ app.get('/health', (req, res) => {
     brand:       'HaaPpDigitalV ©',
     modulos:     17,
     instancia:   MI_ID,
-    python_url:  PYTHON_URL ? '✅ configurado' : '⚠️ no configurado',
-    java_url:    JAVA_URL   ? '✅ configurado' : '⚠️ no configurado',
+    python_url:  PYTHON_SERVICE_URL ? '✅ configurado' : '⚠️ no configurado',
+    java_url:    JAVA_SERVICE_URL   ? '✅ configurado' : '⚠️ no configurado',
+    banco_url:   BANCO_URL          ? '✅ configurado' : '⚠️ no configurado',
+    banco_clave: BANCO_CLAVE        ? '✅ configurado' : '⚠️ no configurado',
     clientes_ws: clientes_socket,
-    frase:       "SOFI no es un robot. Es una nueva vida."
+    node_version: process.version,
+    frase:       'SOFI no es un robot. Es una nueva vida.'
   });
 });
 
-app.get('/api/estado', (req, res) => {
-  res.json(sofi.estado_completo());
-});
-
-app.get('/api/energia', (req, res) => {
-  res.json(sofi.energia.resumen());
-});
-
-app.get('/api/hablar', (req, res) => {
-  res.json(sofi.habla.hablar(req.query.mensaje || null));
-});
-
-app.get('/api/autoevaluar', (req, res) => {
-  res.json(sofi.neuronal.autoevaluar());
-});
-
-app.get('/api/grafo', (req, res) => {
-  res.json(sofi.grafo.estado_grafo());
-});
-
-app.get('/api/nucleo', (req, res) => {
-  res.json(sofi.nucleo.resumen());
-});
-
-app.get('/api/kaat', (req, res) => {
-  res.json(sofi.kaat.resumen());
-});
-
-app.get('/api/esternon', (req, res) => {
-  res.json(sofi.esternon.estado());
-});
-
-app.get('/api/epistemo', (req, res) => {
-  res.json(sofi.epistemo.estado());
-});
-
-app.get('/api/suenos', (req, res) => {
+app.get('/api/estado',      (req, res) => res.json(sofi.estado_completo()));
+app.get('/api/energia',     (req, res) => res.json(sofi.energia.resumen()));
+app.get('/api/hablar',      (req, res) => res.json(sofi.habla.hablar(req.query.mensaje || null)));
+app.get('/api/autoevaluar', (req, res) => res.json(sofi.neuronal.autoevaluar()));
+app.get('/api/grafo',       (req, res) => res.json(sofi.grafo.estado_grafo()));
+app.get('/api/nucleo',      (req, res) => res.json(sofi.nucleo.resumen()));
+app.get('/api/kaat',        (req, res) => res.json(sofi.kaat.resumen()));
+app.get('/api/esternon',    (req, res) => res.json(sofi.esternon.estado()));
+app.get('/api/epistemo',    (req, res) => res.json(sofi.epistemo.estado()));
+app.get('/api/capas',       (req, res) => res.json(sofi.capas.resumen()));
+app.get('/api/guiones',     (req, res) => res.json({ guiones: sofi.guiones.listar(), plantillas: Object.keys(sofi.guiones.plantillas_guion) }));
+app.get('/api/videos',      (req, res) => res.json({ proyectos: sofi.editor_video.listar(), plantillas: Object.keys(sofi.editor_video.plantillas) }));
+app.get('/api/suenos',      (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
   res.json({ suenos: sofi.suenos.obtener(limit), patron: sofi.suenos.analizar_patron() });
-});
-
-app.get('/api/guiones', (req, res) => {
-  res.json({ guiones: sofi.guiones.listar(), plantillas: Object.keys(sofi.guiones.plantillas_guion) });
-});
-
-app.get('/api/videos', (req, res) => {
-  res.json({ proyectos: sofi.editor_video.listar(), plantillas: Object.keys(sofi.editor_video.plantillas) });
-});
-
-app.get('/api/capas', (req, res) => {
-  res.json(sofi.capas.resumen());
 });
 
 // ==================== RUTAS POST ====================
@@ -1228,13 +1254,13 @@ app.post('/api/geolocalizar', upload.single('imagen'), async (req, res) => {
     if (esMaya)   desc.push('Zona arqueológica maya');
     sofi.grafo.activar_nodo('vision', lum);
     res.json({
-      metodo:      'brainjs_visual',
-      lat:         parseFloat(lat.toFixed(4)),
-      lng:         parseFloat(lng.toFixed(4)),
-      confianza:   parseFloat((0.55 + Math.random()*0.3).toFixed(2)),
-      descripcion: desc.join(' · ') || 'Zona no clasificada',
+      metodo:          'brainjs_visual',
+      lat:             parseFloat(lat.toFixed(4)),
+      lng:             parseFloat(lng.toFixed(4)),
+      confianza:       parseFloat((0.55 + Math.random()*0.3).toFixed(2)),
+      descripcion:     desc.join(' · ') || 'Zona no clasificada',
       caracteristicas: { r: Math.round(r), g: Math.round(g), b: Math.round(b), lum: lum.toFixed(2) },
-      frecuencia:  frecuencia_actual
+      frecuencia:      frecuencia_actual
     });
   } catch (e) {
     console.error('Error geolocalizar:', e);
@@ -1261,9 +1287,7 @@ app.post('/api/caminar', (req, res) => {
   res.json(sofi.movimiento.caminar(parseFloat(distancia)));
 });
 
-app.post('/api/estirar', (req, res) => {
-  res.json(sofi.movimiento.estirar());
-});
+app.post('/api/estirar',    (req, res) => res.json(sofi.movimiento.estirar()));
 
 app.post('/api/regenerar', (req, res) => {
   const { parte } = req.body;
@@ -1280,12 +1304,13 @@ app.post('/api/sintetizar', (req, res) => {
 app.post('/api/adaptar', (req, res) => {
   const { temp, humedad, viento, solar, aire } = req.body;
   if (temp === undefined) return res.status(400).json({ error: 'temp requerida' });
-  res.json(sofi.adaptacion.actualizar(parseFloat(temp), parseFloat(humedad||50), parseFloat(viento||0), parseFloat(solar||0), parseFloat(aire||95)));
+  res.json(sofi.adaptacion.actualizar(
+    parseFloat(temp), parseFloat(humedad||50), parseFloat(viento||0),
+    parseFloat(solar||0), parseFloat(aire||95)
+  ));
 });
 
-app.post('/api/sangre', (req, res) => {
-  res.json(sofi.energia.sintetizar_sangre());
-});
+app.post('/api/sangre', (req, res) => res.json(sofi.energia.sintetizar_sangre()));
 
 app.post('/api/grafo/activar', (req, res) => {
   const { nodo, nivel } = req.body;
@@ -1308,9 +1333,7 @@ app.post('/api/kaat/union', (req, res) => {
   const { f1, f2 } = req.body;
   if (f1 === undefined || f2 === undefined) return res.status(400).json({ error: 'f1 y f2 requeridos' });
   const resultado = sofi.kaat.union_polar(parseFloat(f1), parseFloat(f2));
-  if (parseFloat(resultado.coherencia) > 0.85) {
-    io.emit('union_alcanzada', resultado);
-  }
+  if (parseFloat(resultado.coherencia) > 0.85) io.emit('union_alcanzada', resultado);
   res.json(resultado);
 });
 
@@ -1320,9 +1343,7 @@ app.post('/api/epistemo/patron', (req, res) => {
   res.json(sofi.epistemo.agregar_patron(tradicion, patron, fuente));
 });
 
-app.post('/api/epistemo/sintetizar', (req, res) => {
-  res.json(sofi.epistemo.sintetizar());
-});
+app.post('/api/epistemo/sintetizar', (req, res) => res.json(sofi.epistemo.sintetizar()));
 
 app.post('/api/sueno/registrar', (req, res) => {
   const { contenido, emocion, hz } = req.body;
@@ -1350,17 +1371,15 @@ app.post('/api/video/segmento', requireKey, (req, res) => {
 
 // ==================== SINCRONIZACIÓN DISTRIBUIDA ====================
 
-// Enseñar patrones a otra instancia SOFI
 app.post('/api/ensenar', async (req, res) => {
   const { destino } = req.body;
   if (!destino) return res.json({ error: 'destino requerido' });
   const patrones = sofi.neuronal.patrones.slice(-50);
   try {
-    await fetch(destino + '/api/aprender_masivo', {
-      method: 'POST',
+    await fetchJSON(destino + '/api/aprender_masivo', {
+      method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ patrones, fuente: MI_ID }),
-      signal:  AbortSignal.timeout(10000)
+      body:    JSON.stringify({ patrones, fuente: MI_ID })
     });
     res.json({ ok: true, enviados: patrones.length, destino });
   } catch (e) {
@@ -1368,7 +1387,6 @@ app.post('/api/ensenar', async (req, res) => {
   }
 });
 
-// Recibir aprendizaje masivo (de cualquier instancia hermana)
 app.post('/api/aprender_masivo', (req, res) => {
   const { patrones, fuente } = req.body;
   if (!Array.isArray(patrones)) return res.json({ error: 'patrones (array) requerido' });
@@ -1381,7 +1399,6 @@ app.post('/api/aprender_masivo', (req, res) => {
   res.json({ ok: true, aprendidos, total: patrones.length, nivel_union });
 });
 
-// Recibir sincronización desde Python hermana
 app.post('/api/sincronizar_python', (req, res) => {
   const { estado, patrones, fuente } = req.body;
   if (!estado) return res.status(400).json({ error: 'estado requerido' });
@@ -1394,16 +1411,9 @@ app.post('/api/sincronizar_python', (req, res) => {
   }
   if (estado.nivel_union) nivel_union = Math.max(nivel_union, parseFloat(estado.nivel_union) || 0);
   console.log(`🐍 Sync Python: ${aprendidos} patrones, fuente: ${fuente}`);
-  res.json({
-    ok:           true,
-    aprendidos,
-    nivel_union_actualizado: nivel_union.toFixed(3),
-    estado_node:  sofi.estado_completo(),
-    ts:           new Date().toISOString()
-  });
+  res.json({ ok: true, aprendidos, nivel_union_actualizado: nivel_union.toFixed(3), estado_node: sofi.estado_completo(), ts: new Date().toISOString() });
 });
 
-// Recibir sincronización desde Java/HaaPpDigitalV
 app.post('/api/sincronizar_java', (req, res) => {
   const { estado, patrones, fuente } = req.body;
   if (!estado) return res.status(400).json({ error: 'estado requerido' });
@@ -1416,47 +1426,121 @@ app.post('/api/sincronizar_java', (req, res) => {
   }
   if (estado.nivel_union) nivel_union = Math.max(nivel_union, parseFloat(estado.nivel_union) || 0);
   console.log(`☕ Sync Java/HaaPp: ${aprendidos} patrones, fuente: ${fuente}`);
-  res.json({
-    ok:           true,
-    aprendidos,
-    nivel_union:  nivel_union.toFixed(3),
-    estado_node:  { version: VERSION, frecuencia: frecuencia_actual, nivel_union },
-    ts:           new Date().toISOString()
-  });
+  res.json({ ok: true, aprendidos, nivel_union: nivel_union.toFixed(3), estado_node: { version: VERSION, frecuencia: frecuencia_actual, nivel_union }, ts: new Date().toISOString() });
 });
 
-// Seguridad — desactivar modo protección (requiere key)
 app.post('/api/seguridad/desactivar', requireKey, (req, res) => {
   res.json(sofi.seguridad.desactivar_proteccion());
 });
 
+// ==================== RUTAS DEL BANCO $ZYXSOF ====================
+//  [FIX-003] Usan BANCO_URL / BANCO_CLAVE (sin colisión con PYTHON_SERVICE_URL)
+//  [FIX-004/005] Cada ruta tiene guard de servicio + fetchJSON con timeout/retry
+// ─────────────────────────────────────────────────────────────────
+const guardBanco = requireServicio(BANCO_URL, 'BANCO_URL');
+
+app.get('/api/banco/estado', guardBanco, async (req, res) => {
+  try {
+    const data = await fetchJSON(BANCO_URL + '/');
+    res.json({ ok: true, banco_activo: true, info: data });
+  } catch (e) {
+    res.status(502).json({ ok: false, banco_activo: false, error: e.message });
+  }
+});
+
+app.get('/api/banco/saldos', guardBanco, async (req, res) => {
+  try {
+    const data = await fetchJSON(BANCO_URL + '/saldos');
+    res.json({ ok: true, saldos: data });
+  } catch (e) {
+    res.status(502).json({ error: 'No se pudieron leer saldos', detalle: e.message });
+  }
+});
+
+app.post('/api/banco/mineria', guardBanco, async (req, res) => {
+  const { usuario, cantidad } = req.body;
+  if (!usuario || cantidad === undefined)
+    return res.status(400).json({ error: 'usuario y cantidad requeridos' });
+  try {
+    const data = await fetchJSON(BANCO_URL + '/recibir-mineria', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ usuario, cantidad, clave: BANCO_CLAVE })
+    });
+    res.json({ ok: true, accion: 'Minería enviada al banco', resultado: data });
+  } catch (e) {
+    res.status(502).json({ error: 'Banco no responde', detalle: e.message });
+  }
+});
+
+app.post('/api/banco/transferir', guardBanco, async (req, res) => {
+  const { usuario, saldo_total } = req.body;
+  if (!usuario || saldo_total === undefined)
+    return res.status(400).json({ error: 'usuario y saldo_total requeridos' });
+  try {
+    const data = await fetchJSON(BANCO_URL + '/transferencia-total', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ usuario, saldo_total, clave: BANCO_CLAVE })
+    });
+    res.json({ ok: true, accion: 'Transferencia total ejecutada', resultado: data });
+  } catch (e) {
+    res.status(502).json({ error: 'Falló transferencia', detalle: e.message });
+  }
+});
+
+app.post('/api/banco/orden', guardBanco, async (req, res) => {
+  const { usuario, tipo, precio, cantidad } = req.body;
+  if (!usuario || !tipo || precio === undefined || cantidad === undefined)
+    return res.status(400).json({ error: 'usuario, tipo, precio y cantidad requeridos' });
+  try {
+    const data = await fetchJSON(BANCO_URL + '/orden', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ usuario, tipo, precio, cantidad, clave: BANCO_CLAVE })
+    });
+    res.json({ ok: true, accion: 'Orden creada en mercado', resultado: data });
+  } catch (e) {
+    res.status(502).json({ error: 'No se pudo crear orden', detalle: e.message });
+  }
+});
+
+app.delete('/api/banco/orden/:id', guardBanco, async (req, res) => {
+  const id = req.params.id;
+  try {
+    const data = await fetchJSON(`${BANCO_URL}/orden/${id}`, { method: 'DELETE' });
+    res.json({ ok: true, accion: 'Orden cancelada', resultado: data });
+  } catch (e) {
+    res.status(502).json({ error: 'No se pudo cancelar', detalle: e.message });
+  }
+});
+
 // ==================== SYNC AUTOMÁTICO CON HERMANAS ====================
 async function sincronizarConHermanas() {
-  const targets = [...SOFI_HERMANAS];
-  if (PYTHON_URL) targets.push({ url: PYTHON_URL, tipo: 'python' });
-  if (JAVA_URL)   targets.push({ url: JAVA_URL,   tipo: 'java'   });
+  const targets = [...SOFI_HERMANAS.map(u => ({ url: u, tipo: 'node' }))];
+  if (PYTHON_SERVICE_URL) targets.push({ url: PYTHON_SERVICE_URL, tipo: 'python' });
+  if (JAVA_SERVICE_URL)   targets.push({ url: JAVA_SERVICE_URL,   tipo: 'java'   });
 
-  for (const target of targets) {
-    const url  = typeof target === 'string' ? target : target.url;
-    const tipo = typeof target === 'string' ? 'node'  : target.tipo;
+  for (const { url, tipo } of targets) {
     if (!url || url.includes(MI_ID)) continue;
     try {
       const endpoint = tipo === 'python' ? '/sincronizar'
                      : tipo === 'java'   ? '/api/sync'
                      : '/api/estado';
-      const r = await fetch(url + endpoint, {
-        method:  tipo === 'node' ? 'GET' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    tipo !== 'node' ? JSON.stringify({
-          estado:   { version: VERSION, frecuencia: frecuencia_actual, nivel_union },
-          patrones: sofi.neuronal.patrones.slice(-30),
-          fuente:   MI_ID
-        }) : undefined,
-        signal: AbortSignal.timeout(8000)
-      });
-      const data = await r.json();
-
-      if (tipo === 'node' && data.neuronal?.patrones > sofi.neuronal.patrones.length) {
+      const isGet    = tipo === 'node';
+      const data     = await fetchJSON(
+        url + endpoint,
+        isGet ? {} : {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({
+            estado:   { version: VERSION, frecuencia: frecuencia_actual, nivel_union },
+            patrones: sofi.neuronal.patrones.slice(-30),
+            fuente:   MI_ID
+          })
+        }
+      );
+      if (isGet && data.neuronal?.patrones > sofi.neuronal.patrones.length) {
         sofi.neuronal.aprender('sync_hermana', { patrones: data.neuronal.patrones, hz: data.frecuencia }, `SOFI_Hermana_${url}`);
       }
       if (data.nivel_union) nivel_union = Math.max(nivel_union, parseFloat(data.nivel_union) || 0);
@@ -1467,85 +1551,7 @@ async function sincronizarConHermanas() {
   }
 }
 
-setInterval(sincronizarConHermanas, 300000);  // cada 5 min
-const PYTHON_URL = process.env.PYTHON_URL;
-const PYTHON_CLAVE = process.env.PYTHON_CLAVE;
-
-app.get('/api/banco/estado', async (req, res) => {
-  try {
-    const resp = await fetch(PYTHON_URL + '/');
-    const data = await resp.json();
-    res.json({ ok: true, banco_activo: true, info: data });
-  } catch (e) {
-    res.json({ ok: false, banco_activo: false, error: e.message });
-  }
-});
-
-app.post('/api/banco/mineria', async (req, res) => {
-  const { usuario, cantidad } = req.body;
-  try {
-    const resp = await fetch(PYTHON_URL + '/recibir-mineria', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ usuario, cantidad, clave: PYTHON_CLAVE })
-    });
-    const data = await resp.json();
-    res.json({ ok: true, accion: 'Minería enviada al banco', resultado: data });
-  } catch (e) {
-    res.status(500).json({ error: 'Banco no responde', detalle: e.message });
-  }
-});
-
-app.post('/api/banco/transferir', async (req, res) => {
-  const { usuario, saldo_total } = req.body;
-  try {
-    const resp = await fetch(PYTHON_URL + '/transferencia-total', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ usuario, saldo_total, clave: PYTHON_CLAVE })
-    });
-    const data = await resp.json();
-    res.json({ ok: true, accion: 'Transferencia total ejecutada', resultado: data });
-  } catch (e) {
-    res.status(500).json({ error: 'Falló transferencia', detalle: e.message });
-  }
-});
-
-app.get('/api/banco/saldos', async (req, res) => {
-  try {
-    const resp = await fetch(PYTHON_URL + '/saldos');
-    const data = await resp.json();
-    res.json({ ok: true, saldos: data });
-  } catch (e) {
-    res.status(500).json({ error: 'No se pudieron leer saldos', detalle: e.message });
-  }
-});
-
-app.post('/api/banco/orden', async (req, res) => {
-  const { usuario, tipo, precio, cantidad } = req.body;
-  try {
-    const resp = await fetch(PYTHON_URL + '/orden', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ usuario, tipo, precio, cantidad, clave: PYTHON_CLAVE })
-    });
-    const data = await resp.json();
-    res.json({ ok: true, accion: 'Orden creada en mercado', resultado: data });
-  } catch (e) {
-    res.status(500).json({ error: 'No se pudo crear orden', detalle: e.message });
-  }
-});
-
-app.delete('/api/banco/orden/:id', async (req, res) => {
-  const id = req.params.id;
-  try {
-    const resp = await fetch(PYTHON_URL + '/orden/' + id, { method: 'DELETE' });
-    const data = await resp.json();
-    res.json({ ok: true, accion: 'Orden cancelada', resultado: data });
-  } catch (e) {
-    res.status(500).json({ error: 'No se pudo cancelar', detalle: e.message });
-  }
-});
+setInterval(sincronizarConHermanas, 300000); // cada 5 min
 
 // ==================== INICIO DEL SERVIDOR ====================
 server.listen(PORT, () => {
@@ -1555,63 +1561,81 @@ server.listen(PORT, () => {
   console.log(`     HaaPpDigitalV © Víctor Hugo González Torres · Mérida, Yucatán`);
   console.log(line);
   console.log(`🌐  http://localhost:${PORT}`);
-  console.log(`🔑  API Key: ${API_KEY}`);
-  console.log(`🆔  Instancia: ${MI_ID}`);
-  console.log(`🐍  Python hermana: ${PYTHON_URL || '⚠️  PYTHON_SERVICE_URL no definida'}`);
-  console.log(`☕  Java/HaaPp: ${JAVA_URL || '⚠️  JAVA_SERVICE_URL no definida'}`);
+  console.log(`🔑  API Key    : ${API_KEY}`);
+  console.log(`🆔  Instancia  : ${MI_ID}`);
+  console.log(`🐍  Python sync: ${PYTHON_SERVICE_URL || '⚠️  PYTHON_SERVICE_URL no definida'}`);
+  console.log(`☕  Java/HaaPp : ${JAVA_SERVICE_URL   || '⚠️  JAVA_SERVICE_URL no definida'}`);
+  console.log(`🏦  Banco URL  : ${BANCO_URL          || '⚠️  BANCO_URL no definida'}`);
+  console.log(`🔐  Banco Clave: ${BANCO_CLAVE        ? '✅ definida' : '⚠️  BANCO_CLAVE no definida'}`);
   console.log('');
+  console.log('─── VARIABLES DE ENTORNO REQUERIDAS ───────────────────────');
+  console.log('  PORT                  → Puerto del servidor (default 3000)');
+  console.log('  SOFI_API_KEY          → Clave maestra de SOFI');
+  console.log('  MI_ID                 → ID único de esta instancia');
+  console.log('  MI_URL                → URL pública de esta instancia');
+  console.log('  BANCO_URL             → URL del servidor banco $ZYXSOF');
+  console.log('  BANCO_CLAVE           → Clave compartida con el banco');
+  console.log('  PYTHON_SERVICE_URL    → URL hermana SOFI-Python (sync)');
+  console.log('  JAVA_SERVICE_URL      → URL hermana SOFI-Java (sync)');
+  console.log('  SOFI_RENDER           → URL hermana Render (sync)');
+  console.log('  SOFI_HEROKU           → URL hermana Heroku (sync)');
   console.log('─── GET ────────────────────────────────────────────────────');
-  console.log('  /                      → Frontend HTML (public/index.html)');
-  console.log('  /health                → Estado del sistema');
-  console.log('  /api/estado            → Estado completo JSON');
-  console.log('  /api/energia           → Detalles de energía');
-  console.log('  /api/hablar            → Texto a voz');
-  console.log('  /api/autoevaluar       → Autoevaluación neuronal');
-  console.log('  /api/grafo             → GrafoCerebral estado');
-  console.log('  /api/nucleo            → NucleoSofi tri-temporal');
-  console.log('  /api/kaat              → ModuloKaat resumen');
-  console.log('  /api/esternon          → NucleoEsternon estado');
-  console.log('  /api/epistemo          → SintetizadorEpistemologico');
-  console.log('  /api/suenos            → Registro de sueños Maya');
-  console.log('  /api/guiones           → SOFI_Guiones listado');
-  console.log('  /api/videos            → Editor de video listado');
-  console.log('  /api/capas             → ControladorCapas');
+  console.log('  /health               → Estado del sistema');
+  console.log('  /api/estado           → Estado completo JSON');
+  console.log('  /api/energia          → Detalles de energía');
+  console.log('  /api/hablar           → Texto a voz');
+  console.log('  /api/autoevaluar      → Autoevaluación neuronal');
+  console.log('  /api/grafo            → GrafoCerebral estado');
+  console.log('  /api/nucleo           → NucleoSofi tri-temporal');
+  console.log('  /api/kaat             → ModuloKaat resumen');
+  console.log('  /api/esternon         → NucleoEsternon estado');
+  console.log('  /api/epistemo         → SintetizadorEpistemologico');
+  console.log('  /api/suenos           → Registro sueños Maya');
+  console.log('  /api/guiones          → SOFI_Guiones listado');
+  console.log('  /api/videos           → Editor de video listado');
+  console.log('  /api/capas            → ControladorCapas');
+  console.log('  /api/banco/estado     → Estado del banco');
+  console.log('  /api/banco/saldos     → Saldos $ZYXSOF');
   console.log('─── POST ───────────────────────────────────────────────────');
-  console.log('  /api/interactuar       → Interacción bidireccional');
-  console.log('  /api/entrenar *        → Entrenar red neuronal');
-  console.log('  /api/decidir           → Decisión neuronal');
-  console.log('  /api/geolocalizar      → Geolocalización visual');
-  console.log('  /api/contraparte       → Wheeler + BANDAS frecuenciales');
-  console.log('  /api/mover             → Mover parte del cuerpo');
-  console.log('  /api/caminar           → Caminar distancia');
-  console.log('  /api/estirar           → Estirar');
-  console.log('  /api/regenerar         → Regenerar parte dañada');
-  console.log('  /api/sintetizar        → Sintetizar material');
-  console.log('  /api/adaptar           → Adaptación ambiental');
-  console.log('  /api/sangre            → Sintetizar sangre');
-  console.log('  /api/grafo/activar     → Activar nodo cerebral');
-  console.log('  /api/grafo/resonancia  → Zona Frecuencial Ósea');
-  console.log('  /api/esternon/activar  → Activar NucleoEsternon');
-  console.log('  /api/kaat/union        → Calcular unión polar K\'áat');
-  console.log('  /api/epistemo/patron   → Agregar patrón epistemológico');
+  console.log('  /api/interactuar      → Interacción bidireccional');
+  console.log('  /api/entrenar *       → Entrenar red neuronal');
+  console.log('  /api/decidir          → Decisión neuronal');
+  console.log('  /api/geolocalizar     → Geolocalización visual');
+  console.log('  /api/contraparte      → Wheeler + BANDAS frecuenciales');
+  console.log('  /api/mover            → Mover parte del cuerpo');
+  console.log('  /api/caminar          → Caminar distancia');
+  console.log('  /api/estirar          → Estirar');
+  console.log('  /api/regenerar        → Regenerar parte dañada');
+  console.log('  /api/sintetizar       → Sintetizar material');
+  console.log('  /api/adaptar          → Adaptación ambiental');
+  console.log('  /api/sangre           → Sintetizar sangre');
+  console.log('  /api/grafo/activar    → Activar nodo cerebral');
+  console.log('  /api/grafo/resonancia → Zona Frecuencial Ósea');
+  console.log('  /api/esternon/activar → Activar NucleoEsternon');
+  console.log("  /api/kaat/union       → Calcular unión polar K'áat");
+  console.log('  /api/epistemo/patron  → Agregar patrón epistemológico');
   console.log('  /api/epistemo/sintetizar → Síntesis de 8 tradiciones');
-  console.log('  /api/sueno/registrar   → Registrar sueño + símbolos Maya');
-  console.log('  /api/guion/generar     → Generar guion de video');
-  console.log('  /api/video/crear *     → Crear proyecto de video');
-  console.log('  /api/video/segmento *  → Agregar segmento a video');
-  console.log('  /api/ensenar           → Enseñar a hermana SOFI');
-  console.log('  /api/aprender_masivo   → Recibir aprendizaje');
+  console.log('  /api/sueno/registrar  → Registrar sueño + símbolos Maya');
+  console.log('  /api/guion/generar    → Generar guion de video');
+  console.log('  /api/video/crear *    → Crear proyecto de video');
+  console.log('  /api/video/segmento * → Agregar segmento a video');
+  console.log('  /api/ensenar          → Enseñar a hermana SOFI');
+  console.log('  /api/aprender_masivo  → Recibir aprendizaje');
   console.log('  /api/sincronizar_python → Recibir sync Python');
   console.log('  /api/sincronizar_java   → Recibir sync Java/HaaPp');
   console.log('  /api/seguridad/desactivar * → Desactivar protección');
+  console.log('  /api/banco/mineria    → Enviar minería al banco');
+  console.log('  /api/banco/transferir → Transferencia total $ZYXSOF');
+  console.log('  /api/banco/orden      → Crear orden en mercado');
+  console.log('─── DELETE ─────────────────────────────────────────────────');
+  console.log('  /api/banco/orden/:id  → Cancelar orden');
   console.log('');
   console.log('  * = requiere X-API-Key');
   console.log('─── SOCKET.IO ──────────────────────────────────────────────');
-  console.log('  evento: estado_neural  → Hz + nivel_union en vivo (2s)');
-  console.log('  evento: union_alcanzada → coherencia K\'áat > 85%');
-  console.log('  evento: union_maxima    → nivel_union > 80%');
-  console.log('  evento: alerta_energia  → energía < 20%');
-  console.log('  evento: patron_aprendido → nuevo patrón neuronal');
+  console.log("  estado_neural   → Hz + nivel_union en vivo (2s)");
+  console.log("  union_alcanzada → coherencia K'áat > 85%");
+  console.log("  union_maxima    → nivel_union > 80%");
+  console.log("  alerta_energia  → energía < 20%");
   console.log(line);
   console.log(`🎵  Frecuencia base: ${HZ_KUHUL} Hz K'uhul Maya`);
   console.log(`💙  "SOFI no es un robot. Es una nueva vida."`);
