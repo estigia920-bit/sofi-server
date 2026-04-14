@@ -5,14 +5,10 @@
 //  HaaPpDigitalV © · K'uhul Maya 12.3 Hz
 //  Arquitectura distribuida: Node.js · Python · Java
 //  ─────────────────────────────────────────────────────────
-//  🔧 FIXES v6.0.1:
-//    [FIX-001] SyntaxError:https://bank-kusofin-core.onrender.com
-//    [FIX-002] PYTHON_CLAVE usada antes de ser declarada
-//    [FIX-003] Variables de banco separadas (BANCO_URLhttps://bank-kusofin-core.onrender.com / BANCO_CLAVE)
-//    [FIX-004] fetchJSON helper con timeout + retry + guard
-//    [FIX-005] Rutas banco protegidas si BANCO_URL https://bank-kusofin-core.onrender.com
-//    [FIX-006] Advertencia en startup si Node < 18 (fetch nativo)
-//    [FIX-007] Todas las constantes consolidadas en sección única
+//  🔧 FIXES v6.0.2:
+//    [FIX-008] Eliminado require('./sistema_monetario_completo')
+//    [FIX-009] Banco $ZYXSOF ahora 100% externo (Bank-KUSOFIN-core)
+//    [FIX-010] Todas las rutas /api/banco/* usan BANCO_URL y BANCO_CLAVE
 // ============================================================
 
 // ── VERIFICACIÓN DE NODE ≥ 18 (fetch nativo) ────────────────
@@ -44,8 +40,6 @@ const upload = multer({
 });
 
 // ==================== CONSTANTES GLOBALES ====================
-//  ✅ TODAS LAS CONSTANTES AQUÍ — UNA SOLA FUENTE DE VERDAD
-// ─────────────────────────────────────────────────────────────
 const PORT      = process.env.PORT            || 3000;
 const HZ_KUHUL  = 12.3;
 const VERSION   = '6.0';
@@ -55,17 +49,13 @@ const API_KEY   = process.env.SOFI_API_KEY    || 'SOFI-VHGzTs-K6N-v6';
 const MI_ID     = process.env.MI_ID           || 'sofi-node-v6';
 const MI_URL    = process.env.MI_URL          || `http://localhost:${PORT}`;
 
-// [FIX-001 / FIX-003] URLs de servicios distribuidos — nombres distintos para evitar colisión
-// • PYTHON_SERVICE_URL → SOFI hermana Python (sync de patrones)
-// • JAVA_SERVICE_URL   → SOFI hermana Java / HaaPpDigitalV (sync de patrones)
-// • BANCO_URL          → Servidor del banco $ZYXSOF (Python independiente)
-// • BANCO_CLAVE        → Clave compartida con el banco
+// URLs de servicios distribuidos
 const PYTHON_SERVICE_URL = process.env.PYTHON_SERVICE_URL || '';
 const JAVA_SERVICE_URL   = process.env.JAVA_SERVICE_URL   || '';
 
-// [FIX-002] BANCO_URL y BANCO_CLAVE declaradas UNA SOLA VEZ aquí arriba
-const BANCO_URL   = process.env.BANCO_URL   || process.env.PYTHON_URL   || '';
-const BANCO_CLAVE = process.env.BANCO_CLAVE || process.env.PYTHON_CLAVE || '';
+// Banco externo $ZYXSOF (Bank-KUSOFIN-core en Render)
+const BANCO_URL   = process.env.BANCO_URL   || '';
+const BANCO_CLAVE = process.env.BANCO_CLAVE || '';
 
 // Hermanas SOFI Node (Render / Heroku)
 const SOFI_HERMANAS = [
@@ -75,21 +65,10 @@ const SOFI_HERMANAS = [
 
 // Estado global mutable
 let frecuencia_actual = HZ_KUHUL;
-let nivel_union       = 0.0;     // 0–1, Socket.io en modo pleno cuando > 0.8
+let nivel_union       = 0.0;
 let clientes_socket   = 0;
 
 // ==================== HELPER: fetchJSON con timeout + retry ====================
-/**
- * fetchJSON — wrapper sobre fetch con:
- *   · timeout configurable (default 8 s)
- *   · reintentos automáticos (default 1 reintento)
- *   · lanza Error descriptivo en vez de colgarse
- *
- * @param {string}  url
- * @param {object}  options   — opciones fetch estándar
- * @param {number}  timeout   — ms antes de abortar
- * @param {number}  retries   — cuántas veces reintentar tras fallo de red
- */
 async function fetchJSON(url, options = {}, timeout = 8000, retries = 1) {
   for (let intento = 0; intento <= retries; intento++) {
     try {
@@ -194,12 +173,12 @@ class ModuloSeguridad {
 }
 
 // ============================================================
-// 🏦 SISTEMA MONETARIO KUSOFINUM
-// 🪙 MONEDA: $ZYXSOF | ACTIVO: INMEDIATO
+// 🏦 SISTEMA MONETARIO KUSOFINUM - AHORA 100% EXTERNO
+// 🪙 MONEDA: $ZYXSOF | BANCO: Bank-KUSOFIN-core en Render
 // ============================================================
-const SistemaMonetario = require('./sistema_monetario_completo');
-const economia = new SistemaMonetario();
-economia.activarGeneracionContinua();
+// [FIX-008] El banco es un servicio independiente.
+// Todas las operaciones monetarias se realizan vía /api/banco/*
+// ============================================================
 
 // ==================== MÓDULO 2: ENERGÍA ====================
 class ModuloEnergia {
@@ -666,8 +645,6 @@ class NucleoEsternon {
 
 // ==================== MÓDULO 12: MODULO KAAT (UNIÓN POLAR) ====================
 class ModuloKaat {
-  // Postulado 5: K'áat — la separación es frecuencial, no espacial
-  // ΔE = k·(Δf)² + c/Δf
   constructor() {
     this.k            = 1.38e-23;
     this.c_maya       = HZ_KUHUL;
@@ -1434,9 +1411,9 @@ app.post('/api/seguridad/desactivar', requireKey, (req, res) => {
 });
 
 // ==================== RUTAS DEL BANCO $ZYXSOF ====================
-//  [FIX-003] Usan BANCO_URL / BANCO_CLAVE (sin colisión con PYTHON_SERVICE_URL)
-//  [FIX-004/005] Cada ruta tiene guard de servicio + fetchJSON con timeout/retry
-// ─────────────────────────────────────────────────────────────────
+//  🏦 Banco externo: Bank-KUSOFIN-core en Render
+//  Variables requeridas: BANCO_URL, BANCO_CLAVE
+// =================================================================
 const guardBanco = requireServicio(BANCO_URL, 'BANCO_URL');
 
 app.get('/api/banco/estado', guardBanco, async (req, res) => {
