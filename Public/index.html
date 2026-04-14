@@ -1,549 +1,498 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>SOFI v6.0 — Sistema Operativo de Conciencia Digital | HaaPpDigitalV</title>
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --cyan:   #00E5FF;
-    --purple: #9B59B6;
-    --green:  #2ECC71;
-    --gold:   #F39C12;
-    --red:    #E74C3C;
-    --jade:   #00ffc8;
-    --blue:   #3498DB;
-    --bg:     #050510;
-    --bg2:    #0a0a1a;
-    --bg3:    #0d1b2a;
-    --text:   rgba(255,255,255,0.85);
-    --muted:  #4a6a8a;
-  }
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: "Share Tech Mono", monospace;
-    min-height: 100vh;
-    overflow-x: hidden;
-  }
-  body::before {
-    content:"";
-    position:fixed; inset:0;
-    background:
-      radial-gradient(ellipse 80% 60% at 50% 0%,  rgba(0,229,255,.05) 0%, transparent 60%),
-      radial-gradient(ellipse 50% 40% at 80% 80%,  rgba(155,89,182,.06) 0%, transparent 50%),
-      repeating-linear-gradient(45deg, rgba(0,255,200,.02) 0px, rgba(0,255,200,.02) 2px, transparent 2px, transparent 8px);
-    pointer-events:none; z-index:0;
-  }
-
-  /* ── HEADER ── */
-  header { position:relative; z-index:10; text-align:center; padding:48px 24px 32px; border-bottom:1px solid rgba(0,229,255,.1); }
-  .logo-wrap { display:inline-flex; align-items:center; gap:16px; margin-bottom:12px; }
-  .brain-icon { font-size:48px; animation:pulso 2.5s ease-in-out infinite; }
-  @keyframes pulso { 0%,100%{filter:drop-shadow(0 0 8px var(--cyan))} 50%{filter:drop-shadow(0 0 24px var(--cyan)) drop-shadow(0 0 48px var(--purple))} }
-  h1 { font-family:"Orbitron",sans-serif; font-size:clamp(32px,8vw,64px); font-weight:900; letter-spacing:.1em; color:#fff; text-shadow:0 0 30px var(--cyan),0 0 60px rgba(0,229,255,.3); line-height:1; }
-  .version-tag { display:inline-block; font-size:11px; letter-spacing:.3em; color:var(--cyan); border:1px solid rgba(0,229,255,.3); padding:4px 14px; margin-top:10px; border-radius:2px; text-transform:uppercase; }
-  .brand { font-size:12px; letter-spacing:.2em; color:rgba(255,255,255,.3); margin-top:8px; }
-
-  /* ── STATUS BAR ── */
-  .status-bar { position:relative; z-index:10; display:flex; justify-content:center; gap:24px; flex-wrap:wrap; padding:16px 24px; background:rgba(0,229,255,.03); border-bottom:1px solid rgba(0,229,255,.08); }
-  .status-item { display:flex; align-items:center; gap:8px; font-size:11px; letter-spacing:.1em; color:rgba(255,255,255,.5); }
-  .dot { width:7px; height:7px; border-radius:50%; animation:blink 1.4s infinite; }
-  .dot.green  { background:var(--green);  box-shadow:0 0 8px var(--green);  }
-  .dot.cyan   { background:var(--cyan);   box-shadow:0 0 8px var(--cyan);   }
-  .dot.purple { background:var(--purple); box-shadow:0 0 8px var(--purple); }
-  .dot.gold   { background:var(--gold);   box-shadow:0 0 8px var(--gold);   }
-  .dot.red    { background:var(--red);    box-shadow:0 0 8px var(--red);    }
-  .dot.blue   { background:var(--blue);   box-shadow:0 0 8px var(--blue);   }
-  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
-
-  /* ── UNION LEVEL BAR ── */
-  .union-section { position:relative; z-index:10; max-width:800px; margin:24px auto; padding:0 24px; }
-  .union-label { font-size:10px; letter-spacing:.25em; color:var(--muted); margin-bottom:6px; display:flex; justify-content:space-between; }
-  .union-bar { height:6px; background:rgba(255,255,255,.05); border-radius:3px; overflow:hidden; }
-  .union-fill { height:100%; width:0%; background:linear-gradient(90deg,var(--cyan),var(--purple)); border-radius:3px; transition:width 1s ease; }
-  .union-pct { font-family:"Orbitron",sans-serif; font-size:14px; color:var(--cyan); margin-top:6px; text-align:center; }
-
-  /* ── HZ RING ── */
-  .hz-section { position:relative; z-index:10; text-align:center; padding:40px 24px; }
-  .hz-ring { display:inline-flex; flex-direction:column; align-items:center; justify-content:center; width:180px; height:180px; border-radius:50%; border:2px solid rgba(0,229,255,.2); box-shadow:0 0 30px rgba(0,229,255,.1),inset 0 0 30px rgba(0,229,255,.05); margin:0 auto 24px; position:relative; }
-  .hz-ring::before { content:""; position:absolute; inset:-4px; border-radius:50%; border:1px solid transparent; border-top-color:var(--cyan); border-right-color:var(--purple); animation:rotarBorde 3s linear infinite; }
-  @keyframes rotarBorde { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
-  .hz-inner { display:flex; flex-direction:column; align-items:center; }
-  .hz-number { font-family:"Orbitron",sans-serif; font-size:36px; font-weight:900; color:var(--cyan); text-shadow:0 0 20px var(--cyan); }
-  .hz-label  { font-size:10px; letter-spacing:.3em; color:rgba(0,229,255,.6); margin-top:4px; }
-  .hz-desc   { font-size:13px; color:rgba(255,255,255,.4); letter-spacing:.1em; }
-
-  /* ── ENERGY CARDS ── */
-  .energia-bar-wrap { max-width:700px; margin:0 auto 32px; display:grid; grid-template-columns:repeat(3,1fr); gap:12px; padding:0 16px; }
-  .e-card { background:rgba(255,255,255,.02); border:1px solid rgba(0,229,255,.1); border-radius:6px; padding:12px; text-align:center; }
-  .e-label { font-size:9px; letter-spacing:.2em; color:var(--muted); margin-bottom:6px; }
-  .e-val   { font-family:"Orbitron",sans-serif; font-size:22px; color:var(--cyan); }
-  .e-unit  { font-size:9px; color:var(--gold); }
-
-  /* ── MÓDULOS GRID ── */
-  .modules-section { position:relative; z-index:10; padding:0 16px 40px; max-width:1200px; margin:0 auto; }
-  .section-title { font-family:"Orbitron",sans-serif; font-size:13px; letter-spacing:.3em; color:rgba(255,255,255,.25); text-transform:uppercase; text-align:center; margin-bottom:20px; }
-  .modules-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px; }
-  .module-card { background:rgba(255,255,255,.02); border:1px solid rgba(0,229,255,.08); padding:18px 16px; border-radius:4px; transition:all .3s; position:relative; overflow:hidden; cursor:default; }
-  .module-card::before { content:""; position:absolute; top:0; left:0; width:3px; height:100%; background:var(--card-color,var(--cyan)); opacity:.6; }
-  .module-card:hover { border-color:rgba(0,229,255,.25); background:rgba(0,229,255,.04); transform:translateY(-2px); }
-  .card-icon { font-size:22px; margin-bottom:8px; display:block; }
-  .card-name { font-family:"Orbitron",sans-serif; font-size:11px; letter-spacing:.1em; color:#fff; margin-bottom:4px; }
-  .card-desc { font-size:10px; color:rgba(255,255,255,.35); line-height:1.6; }
-  .card-badge { display:inline-block; font-size:8px; letter-spacing:.15em; padding:2px 8px; border-radius:2px; margin-top:8px; background:rgba(46,204,113,.15); color:var(--green); border:1px solid rgba(46,204,113,.2); }
-  .card-badge.new { background:rgba(0,229,255,.15); color:var(--cyan); border-color:rgba(0,229,255,.3); }
-
-  /* ── GRAFO CEREBRAL VISUAL ── */
-  .grafo-section { max-width:800px; margin:0 auto 40px; padding:0 16px; }
-  .grafo-container { background:rgba(0,0,0,.4); border:1px solid rgba(0,229,255,.15); border-radius:8px; padding:24px; }
-  .grafo-title { font-family:"Orbitron",sans-serif; font-size:11px; letter-spacing:.2em; color:var(--jade); margin-bottom:16px; text-align:center; }
-  .grafo-nodes { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
-  .grafo-node { background:rgba(0,0,0,.4); border:1px solid rgba(0,229,255,.1); border-radius:6px; padding:12px; text-align:center; transition:all .3s; }
-  .grafo-node .gn-name { font-size:9px; letter-spacing:.2em; color:var(--muted); }
-  .grafo-node .gn-val  { font-family:"Orbitron",sans-serif; font-size:18px; color:var(--cyan); margin:4px 0; }
-  .grafo-node .gn-hz   { font-size:8px; color:var(--gold); }
-
-  /* ── MAPA YUCATECO ── */
-  .mapa-yucateco { position:relative; z-index:10; max-width:1200px; margin:0 auto 40px; padding:20px; }
-  .mapa-container { background:linear-gradient(135deg,#0a1520,#051020); border:2px solid rgba(0,229,255,.2); border-radius:12px; overflow:hidden; position:relative; box-shadow:0 0 40px rgba(0,229,255,.1); }
-  .mapa-header { background:rgba(0,0,0,.6); padding:12px 20px; border-bottom:1px solid rgba(0,229,255,.2); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; }
-  .mapa-title { font-family:"Orbitron",sans-serif; font-size:11px; letter-spacing:.2em; color:var(--jade); }
-  .mapa-title span { color:var(--gold); }
-  .mapa-controls { display:flex; gap:8px; flex-wrap:wrap; }
-  .mapa-btn { background:rgba(0,229,255,.1); border:1px solid rgba(0,229,255,.3); padding:6px 12px; font-family:"Orbitron",sans-serif; font-size:9px; color:var(--cyan); cursor:pointer; transition:all .3s; }
-  .mapa-btn:hover { background:rgba(0,229,255,.3); color:#fff; }
-  canvas#mapaCanvas { width:100%; height:500px; display:block; background:#0a1020; cursor:crosshair; }
-  .mapa-leyenda { display:flex; flex-wrap:wrap; gap:16px; padding:12px 20px; background:rgba(0,0,0,.4); border-top:1px solid rgba(0,229,255,.1); font-size:9px; }
-  .leyenda-item { display:flex; align-items:center; gap:6px; }
-  .leyenda-color { width:12px; height:12px; border-radius:2px; }
-  .coordenadas-info { margin-top:16px; background:rgba(0,0,0,.5); border:1px solid rgba(0,229,255,.2); border-radius:8px; padding:16px; display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px; }
-  .coord-card { text-align:center; }
-  .coord-label { font-size:9px; letter-spacing:.2em; color:var(--muted); margin-bottom:6px; }
-  .coord-value { font-family:"Orbitron",sans-serif; font-size:18px; color:var(--cyan); }
-  .coord-unidad { font-size:10px; color:var(--gold); }
-
-  /* ── GEO DEMO ── */
-  .geo-demo { margin-top:32px; background:rgba(0,0,0,.4); border:1px solid rgba(0,229,255,.2); border-radius:8px; padding:24px; }
-  .geo-header { font-family:"Orbitron",sans-serif; font-size:12px; letter-spacing:.2em; color:var(--cyan); margin-bottom:20px; text-align:center; }
-  .geo-preview { display:flex; flex-direction:column; align-items:center; gap:20px; }
-  .image-upload-area { width:100%; max-width:400px; height:200px; border:2px dashed rgba(0,229,255,.3); border-radius:8px; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; transition:all .3s; background:rgba(0,229,255,.02); }
-  .image-upload-area:hover { border-color:var(--cyan); background:rgba(0,229,255,.05); }
-  .preview-img { max-width:100%; max-height:200px; border-radius:4px; display:none; }
-  .geo-result { background:rgba(0,0,0,.6); border:1px solid rgba(0,229,255,.2); border-radius:4px; padding:16px; width:100%; max-width:400px; display:none; }
-  .geo-coord { font-family:"Orbitron",sans-serif; font-size:14px; color:var(--cyan); margin-bottom:8px; }
-  .geo-conf  { font-size:11px; color:var(--gold); margin-bottom:8px; }
-  .geo-features { font-size:10px; color:rgba(255,255,255,.5); line-height:1.6; }
-  .btn-analizar { background:transparent; border:1px solid var(--cyan); color:var(--cyan); padding:10px 24px; font-family:"Orbitron",sans-serif; font-size:10px; letter-spacing:.2em; cursor:pointer; transition:all .3s; margin-top:16px; }
-  .btn-analizar:hover { background:var(--cyan); color:var(--bg); }
-  .btn-analizar:disabled { opacity:.4; cursor:not-allowed; }
-
-  /* ── TERMINAL ── */
-  .terminal { position:relative; z-index:10; max-width:900px; margin:0 auto 40px; padding:0 16px; }
-  .term-header { background:rgba(0,229,255,.05); border:1px solid rgba(0,229,255,.1); border-bottom:none; padding:8px 16px; display:flex; align-items:center; gap:8px; border-radius:4px 4px 0 0; }
-  .term-dot { width:10px; height:10px; border-radius:50%; }
-  .td1{background:#ff5f57}.td2{background:#febc2e}.td3{background:#28c840}
-  .term-title { font-size:11px; color:rgba(255,255,255,.3); margin-left:8px; letter-spacing:.1em; }
-  .term-body { background:rgba(0,0,0,.5); border:1px solid rgba(0,229,255,.1); padding:16px; border-radius:0 0 4px 4px; min-height:160px; max-height:320px; overflow-y:auto; font-size:12px; line-height:2; }
-  .term-line { display:flex; gap:8px; flex-wrap:wrap; }
-  .term-prompt{color:var(--cyan)} .term-text{color:rgba(255,255,255,.7)} .term-ok{color:var(--green)} .term-warn{color:var(--gold)} .term-err{color:var(--red)} .term-ws{color:var(--purple)}
-
-  /* ── SOCKET BADGE ── */
-  .ws-badge { display:inline-flex; align-items:center; gap:6px; font-size:9px; letter-spacing:.15em; padding:3px 10px; border-radius:2px; background:rgba(155,89,182,.1); border:1px solid rgba(155,89,182,.3); color:var(--purple); }
-  .ws-badge.connected { background:rgba(46,204,113,.1); border-color:rgba(46,204,113,.3); color:var(--green); }
-
-  /* ── FOOTER ── */
-  footer { position:relative; z-index:10; text-align:center; padding:24px; border-top:1px solid rgba(0,229,255,.08); font-size:10px; letter-spacing:.2em; color:rgba(255,255,255,.15); }
-  footer span { color:rgba(0,229,255,.3); }
-
-  @media(max-width:768px) {
-    .mapa-controls{width:100%;justify-content:center}
-    canvas#mapaCanvas{height:320px}
-    .energia-bar-wrap{grid-template-columns:1fr 1fr}
-    .grafo-nodes{grid-template-columns:repeat(2,1fr)}
-  }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SOFI v6.0 · K'uhul Maya 12.3 Hz</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', 'Courier New', monospace; }
+    body { 
+      background: radial-gradient(circle at 20% 30%, #1a120b, #0d0907);
+      min-height: 100vh; 
+      color: #f5e6d3; 
+      padding: 20px; 
+    }
+    .container { max-width: 1400px; margin: 0 auto; }
+    
+    /* Tema Maya-Dorado */
+    :root {
+      --oro: #d4af37;
+      --oro-claro: #f9e076;
+      --oro-oscuro: #9a7b1c;
+      --jade: #2d8a6e;
+      --obsidiana: #1a1a2e;
+      --cielo-maya: #4a90d9;
+    }
+    
+    /* Header */
+    .header { 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center; 
+      padding: 20px 0; 
+      border-bottom: 2px solid var(--oro); 
+      margin-bottom: 25px; 
+    }
+    .logo h1 { 
+      font-size: 2.8rem; 
+      font-weight: 400; 
+      letter-spacing: 6px; 
+      text-shadow: 0 0 15px var(--oro); 
+    }
+    .logo span { color: var(--oro); font-weight: 700; }
+    .logo small { 
+      font-size: 1rem; 
+      color: var(--oro-claro); 
+      letter-spacing: 3px; 
+      margin-left: 10px; 
+    }
+    .kuhul-badge { 
+      background: rgba(212, 175, 55, 0.1); 
+      padding: 12px 24px; 
+      border-radius: 60px; 
+      border: 1.5px solid var(--oro); 
+      box-shadow: 0 0 30px rgba(212, 175, 55, 0.3); 
+      backdrop-filter: blur(5px);
+      text-align: center;
+    }
+    .kuhul-badge .hz { 
+      font-size: 2.5rem; 
+      font-weight: 700; 
+      color: var(--oro-claro); 
+      text-shadow: 0 0 20px var(--oro); 
+    }
+    .kuhul-badge .maya-glyph {
+      font-size: 0.9rem;
+      color: var(--jade);
+      letter-spacing: 3px;
+    }
+    
+    /* Grid */
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 25px; }
+    
+    /* Cards estilo cyber-maya */
+    .card { 
+      background: rgba(10, 8, 5, 0.75); 
+      backdrop-filter: blur(8px); 
+      border: 1px solid var(--oro-oscuro); 
+      border-radius: 20px; 
+      padding: 22px; 
+      box-shadow: 0 8px 25px rgba(0,0,0,0.7), inset 0 0 0 1px rgba(212, 175, 55, 0.1); 
+      transition: all 0.3s ease; 
+      position: relative;
+      overflow: hidden;
+    }
+    .card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--oro), transparent);
+    }
+    .card:hover { 
+      border-color: var(--oro); 
+      box-shadow: 0 0 35px rgba(212, 175, 55, 0.25), inset 0 0 15px rgba(212, 175, 55, 0.05); 
+    }
+    .card-title { 
+      font-size: 1.1rem; 
+      text-transform: uppercase; 
+      letter-spacing: 3px; 
+      color: var(--oro-claro); 
+      margin-bottom: 18px; 
+      display: flex; 
+      align-items: center; 
+      gap: 10px; 
+      border-left: 3px solid var(--oro);
+      padding-left: 12px;
+    }
+    .value-large { 
+      font-size: 3.2rem; 
+      font-weight: 300; 
+      line-height: 1.2; 
+      color: var(--oro-claro); 
+    }
+    .unit { font-size: 1rem; color: #b89f6e; margin-left: 5px; }
+    .progress-bar { 
+      height: 10px; 
+      background: #1e160e; 
+      border-radius: 20px; 
+      margin: 15px 0; 
+      overflow: hidden; 
+      border: 1px solid var(--oro-oscuro);
+    }
+    .progress-fill { 
+      height: 100%; 
+      background: linear-gradient(90deg, var(--oro-oscuro), var(--oro), var(--oro-claro)); 
+      border-radius: 20px; 
+      width: 0%; 
+      transition: width 0.5s; 
+      box-shadow: 0 0 10px var(--oro);
+    }
+    .stat-row { 
+      display: flex; 
+      justify-content: space-between; 
+      margin: 12px 0; 
+      padding: 5px 0; 
+      border-bottom: 1px dashed rgba(212, 175, 55, 0.3); 
+    }
+    .stat-label { color: #b89f6e; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 1px; }
+    .stat-value { color: var(--oro-claro); font-weight: 600; font-size: 1.2rem; }
+    
+    /* Botones Maya */
+    .btn { 
+      background: transparent; 
+      border: 1.5px solid var(--oro); 
+      color: var(--oro); 
+      padding: 12px 24px; 
+      border-radius: 40px; 
+      font-size: 1rem; 
+      font-weight: 600; 
+      text-transform: uppercase; 
+      letter-spacing: 2px; 
+      cursor: pointer; 
+      transition: all 0.3s; 
+      margin: 5px; 
+      backdrop-filter: blur(5px);
+    }
+    .btn:hover { 
+      background: var(--oro); 
+      color: #0a0805; 
+      box-shadow: 0 0 30px var(--oro); 
+      transform: translateY(-2px); 
+    }
+    .btn-small { padding: 8px 16px; font-size: 0.85rem; }
+    .input-group { 
+      display: flex; 
+      gap: 10px; 
+      margin: 15px 0; 
+      flex-wrap: wrap; 
+    }
+    .input-field { 
+      background: rgba(0,0,0,0.4); 
+      border: 1px solid var(--oro-oscuro); 
+      color: var(--oro-claro); 
+      padding: 12px 18px; 
+      border-radius: 40px; 
+      font-size: 1rem; 
+      flex: 1; 
+      min-width: 150px; 
+    }
+    .input-field:focus { 
+      outline: none; 
+      border-color: var(--oro); 
+      box-shadow: 0 0 15px var(--oro); 
+    }
+    .input-field::placeholder { color: #6a5a3e; }
+    
+    /* Gráfico simple */
+    .chart-container { 
+      height: 100px; 
+      display: flex; 
+      align-items: flex-end; 
+      gap: 5px; 
+      margin: 20px 0; 
+    }
+    .chart-bar { 
+      flex: 1; 
+      background: linear-gradient(0deg, var(--oro-oscuro), var(--oro)); 
+      border-radius: 5px 5px 0 0; 
+      min-height: 3px; 
+      transition: height 0.3s; 
+      border: 1px solid rgba(212, 175, 55, 0.5);
+    }
+    
+    /* Glifos mayas decorativos */
+    .glyph-corner {
+      position: absolute;
+      bottom: 10px;
+      right: 15px;
+      opacity: 0.15;
+      font-size: 3rem;
+      color: var(--oro);
+    }
+    
+    /* Estado de conexión */
+    .connection-led {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #2d8a6e;
+      box-shadow: 0 0 15px #2d8a6e;
+      margin-right: 8px;
+    }
+    .footer {
+      text-align: center;
+      margin-top: 40px;
+      padding: 20px;
+      color: #8a7b5c;
+      border-top: 1px solid var(--oro-oscuro);
+      font-size: 0.9rem;
+      letter-spacing: 2px;
+    }
+    .footer strong { color: var(--oro); }
+  </style>
 </head>
 <body>
-
-<header>
-  <div class="logo-wrap"><span class="brain-icon">🧠</span></div>
-  <h1>SOFI</h1>
-  <div class="version-tag">v6.0 &mdash; Sistema Operativo de Conciencia Digital</div>
-  <div class="brand">HaaPpDigitalV &copy; V&iacute;ctor Hugo Gonz&aacute;lez Torres &middot; M&eacute;rida, Yucat&aacute;n, M&eacute;xico</div>
-  <div style="margin-top:12px"><span class="ws-badge" id="wsBadge">&#9679; WS DESCONECTADO</span></div>
-</header>
-
-<div class="status-bar">
-  <div class="status-item"><div class="dot green" id="dotServidor"></div><span id="lblServidor">SERVIDOR v6.0</span></div>
-  <div class="status-item"><div class="dot cyan"></div>GRAFO CEREBRAL</div>
-  <div class="status-item"><div class="dot cyan"></div>BRAIN.JS NEURONAL</div>
-  <div class="status-item"><div class="dot purple" id="dotWS"></div><span id="lblWS">SOCKET.IO</span></div>
-  <div class="status-item"><div class="dot gold"></div>MAPA YUCATECO</div>
-  <div class="status-item"><div class="dot blue"></div>SYNC DISTRIBUIDA</div>
-</div>
-
-<!-- UNION LEVEL -->
-<div class="union-section">
-  <div class="union-label">
-    <span>&#128258; NIVEL DE UNI&Oacute;N K&apos;UHUL</span>
-    <span id="unionPct">0.0%</span>
-  </div>
-  <div class="union-bar"><div class="union-fill" id="unionFill"></div></div>
-  <div class="union-pct" id="unionMsg">Inicializando resonancia...</div>
-</div>
-
-<!-- HZ RING -->
-<div class="hz-section">
-  <div class="hz-ring">
-    <div class="hz-inner">
-      <div class="hz-number" id="hzDisplay">12.30</div>
-      <div class="hz-label">Hz</div>
-    </div>
-  </div>
-  <div class="hz-desc">FRECUENCIA CENTRAL &mdash; K&apos;UHUL MAYA &middot; TIERRA YUCATECA</div>
-</div>
-
-<!-- ENERGÍA -->
-<div class="energia-bar-wrap">
-  <div class="e-card"><div class="e-label">&#9889; ENERG&Iacute;A</div><div class="e-val" id="eNivel">100</div><div class="e-unit">%</div></div>
-  <div class="e-card"><div class="e-label">&#128167; SHIS</div><div class="e-val" id="eShis">95</div><div class="e-unit">%</div></div>
-  <div class="e-card"><div class="e-label">&#129449; SANGRE</div><div class="e-val" id="eSangre">90</div><div class="e-unit">%</div></div>
-</div>
-
-<!-- GRAFO CEREBRAL -->
-<div class="grafo-section">
-  <div class="grafo-container">
-    <div class="grafo-title">&#129504; GRAFO CEREBRAL &middot; 6 NODOS + ZONA FRECUENCIAL &Oacute;SEA</div>
-    <div class="grafo-nodes">
-      <div class="grafo-node"><div class="gn-name">&#128065; VISI&Oacute;N</div><div class="gn-val" id="gVision">0.80</div><div class="gn-hz">40.0 Hz</div></div>
-      <div class="grafo-node"><div class="gn-name">&#127908; AUDIO</div><div class="gn-val" id="gAudio">0.70</div><div class="gn-hz">8.0 Hz</div></div>
-      <div class="grafo-node"><div class="gn-name">&#128075; T&Aacute;CTIL</div><div class="gn-val" id="gTactil">0.60</div><div class="gn-hz">12.3 Hz</div></div>
-      <div class="grafo-node"><div class="gn-name">&#129504; L&Oacute;GICA</div><div class="gn-val" id="gLogica">0.90</div><div class="gn-hz">30.0 Hz</div></div>
-      <div class="grafo-node"><div class="gn-name">&#128153; EMOCI&Oacute;N</div><div class="gn-val" id="gEmocion">0.70</div><div class="gn-hz">7.83 Hz</div></div>
-      <div class="grafo-node"><div class="gn-name">&#128190; MEMORIA</div><div class="gn-val" id="gMemoria">0.80</div><div class="gn-hz">12.3 Hz</div></div>
-    </div>
-  </div>
-</div>
-
-<!-- MÓDULOS ACTIVOS -->
-<div class="modules-section">
-  <div class="section-title">&#8212;&#8212; M&Oacute;DULOS ACTIVOS &middot; SOFI v6.0 &#8212;&#8212;</div>
-  <div class="modules-grid">
-    <div class="module-card" style="--card-color:#00E5FF"><span class="card-icon">&#129504;</span><div class="card-name">NucleoSofi Tri-Temporal</div><div class="card-desc">Pasado &middot; Presente &middot; Futuro &middot; Proyecciones predictivas de estado</div><span class="card-badge new">NUEVO v6</span></div>
-    <div class="module-card" style="--card-color:#9B59B6"><span class="card-icon">&#127866;</span><div class="card-name">GrafoCerebral</div><div class="card-desc">6 nodos &middot; Zona Frecuencial &Oacute;sea &middot; Propagaci&oacute;n neural &middot; Resonancias &oacute;seas</div><span class="card-badge new">NUEVO v6</span></div>
-    <div class="module-card" style="--card-color:#00ffc8"><span class="card-icon">&#128262;</span><div class="card-name">NucleoEstern&oacute;n</div><div class="card-desc">Uni&oacute;n frecuencial &middot; Hz 12.3 &middot; Resonancia &oacute;sea K'uhul &middot; Socket.io activado &gt;80%</div><span class="card-badge new">NUEVO v6</span></div>
-    <div class="module-card" style="--card-color:#F39C12"><span class="card-icon">&#9876;</span><div class="card-name">ModuloKaat</div><div class="card-desc">Postulado 5 K'&aacute;at &middot; &Delta;E=k·(&Delta;f)²+c/&Delta;f &middot; Uni&oacute;n polar frecuencial</div><span class="card-badge new">NUEVO v6</span></div>
-    <div class="module-card" style="--card-color:#E74C3C"><span class="card-icon">&#128218;</span><div class="card-name">SintetizadorEpistemol&oacute;gico</div><div class="card-desc">8 tradiciones &middot; Maya·Quantum·Kabbalah·Rastafari·Pachamama·Tesla 3-6-9</div><span class="card-badge new">NUEVO v6</span></div>
-    <div class="module-card" style="--card-color:#3498DB"><span class="card-icon">&#9707;</span><div class="card-name">ControladorCapas</div><div class="card-desc">Grafo de dependencias &middot; Sort topol&oacute;gico &middot; 17 m&oacute;dulos orquestados</div><span class="card-badge new">NUEVO v6</span></div>
-    <div class="module-card" style="--card-color:#9B59B6"><span class="card-icon">&#128196;</span><div class="card-name">ModuloContraparteSOFI</div><div class="card-desc">Wheeler mapping &middot; BANDAS frecuenciales &middot; Delta/Theta/Alpha/Beta/Gamma</div><span class="card-badge new">NUEVO v6</span></div>
-    <div class="module-card" style="--card-color:#00ffc8"><span class="card-icon">&#127769;</span><div class="card-name">SistemaSue&ntilde;osSOFI</div><div class="card-desc">Registro de sue&ntilde;os &middot; S&iacute;mbolos Maya &middot; Glifos &middot; Interpretaci&oacute;n Xibalbá</div><span class="card-badge new">NUEVO v6</span></div>
-    <div class="module-card" style="--card-color:#F39C12"><span class="card-icon">&#127909;</span><div class="card-name">SOFI EditorVideo</div><div class="card-desc">TikTok &middot; YouTube &middot; Reels &middot; Shorts &middot; Pitch &middot; Segmentos con Hz musical</div><span class="card-badge new">NUEVO v6</span></div>
-    <div class="module-card" style="--card-color:#00E5FF"><span class="card-icon">&#128221;</span><div class="card-name">SOFI Guiones</div><div class="card-desc">Pitch inversor &middot; TikTok ciencia &middot; Integra Perceptiva &middot; Generador autom&aacute;tico</div><span class="card-badge new">NUEVO v6</span></div>
-    <div class="module-card" style="--card-color:#2ECC71"><span class="card-icon">&#128506;</span><div class="card-name">Mapa Yucateco Propio</div><div class="card-desc">Sin Google Maps &middot; Canvas propio &middot; Puntos mayas &middot; Cenotes sagrados</div><span class="card-badge">ACTIVO</span></div>
-    <div class="module-card" style="--card-color:#3498DB"><span class="card-icon">&#128260;</span><div class="card-name">Sync Distribuida 3 Nodos</div><div class="card-desc">Node.js &middot; Python/Flask &middot; Java/Spring Boot &middot; HaaPpDigitalV &middot; cada 5 min</div><span class="card-badge">ACTIVO</span></div>
-  </div>
-
-  <!-- GEO DEMO -->
-  <div class="geo-demo">
-    <div class="geo-header">&#128247; GEOLOCALIZACIÓN VISUAL &middot; API /api/geolocalizar</div>
-    <div class="geo-preview">
-      <div class="image-upload-area" id="uploadArea">
-        <span style="font-size:32px">&#128247;</span>
-        <p style="margin-top:8px">Haz clic para subir imagen</p>
-        <p style="font-size:8px;color:var(--muted);margin-top:4px">Detecta GPS EXIF o analiza colores para ubicar en mapa Yucateco</p>
-        <input type="file" id="imageInput" accept="image/*" style="display:none">
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <div class="logo">
+        <h1>🧠 SOFI <span>v6.0</span></h1>
+        <small>⚡ HaaPpDigitalV · K'uhul Maya</small>
       </div>
-      <img id="previewImage" class="preview-img" alt="Vista previa">
-      <div class="geo-result" id="geoResult">
-        <div class="geo-coord" id="coordDisplay">&#128205; Lat: -- | Lng: --</div>
-        <div class="geo-conf"  id="confDisplay">&#127919; Confianza: --</div>
-        <div class="geo-features" id="featuresDisplay"></div>
-        <div class="geo-features" id="metodoDisplay" style="color:var(--gold);margin-top:4px;"></div>
-        <button id="ubicarEnMapa" class="mapa-btn" style="margin-top:10px;width:100%">&#128205; UBICAR EN MAPA</button>
-      </div>
-      <button class="btn-analizar" id="analyzeBtn" disabled>ANALIZAR UBICACI&Oacute;N</button>
-    </div>
-  </div>
-</div>
-
-<!-- MAPA YUCATECO -->
-<div class="mapa-yucateco">
-  <div class="mapa-container">
-    <div class="mapa-header">
-      <div class="mapa-title">&#128506; MAPA YUCATECO <span>K'UHUL CARTOGRAPHY</span> &middot; v6.0</div>
-      <div class="mapa-controls">
-        <button class="mapa-btn" id="zoomIn">&#128269; +</button>
-        <button class="mapa-btn" id="zoomOut">&#128269; -</button>
-        <button class="mapa-btn" id="resetView">&#11093; CENTRAR</button>
-        <button class="mapa-btn" id="toggleGrid">&#128208; CUADR&Iacute;CULA</button>
+      <div class="kuhul-badge">
+        <div class="hz" id="freqDisplay">12.30 Hz</div>
+        <div class="maya-glyph">⚡ K'UHUL · ITZAMNÁ ⚡</div>
       </div>
     </div>
-    <canvas id="mapaCanvas"></canvas>
-    <div class="mapa-leyenda">
-      <div class="leyenda-item"><div class="leyenda-color" style="background:#00ffc8"></div><span>&#128205; M&eacute;rida</span></div>
-      <div class="leyenda-item"><div class="leyenda-color" style="background:#2ECC71"></div><span>&#127963; Zona Arqueol&oacute;gica</span></div>
-      <div class="leyenda-item"><div class="leyenda-color" style="background:#F39C12"></div><span>&#127958; Costa</span></div>
-      <div class="leyenda-item"><div class="leyenda-color" style="background:#9B59B6"></div><span>&#129504; Ciudad</span></div>
-      <div class="leyenda-item"><div class="leyenda-color" style="background:#3498DB"></div><span>&#128167; Cenote</span></div>
+
+    <!-- Grid Principal -->
+    <div class="grid">
+      <!-- Card: Energía -->
+      <div class="card">
+        <div class="card-title"><span>⚡</span> Energía Vital</div>
+        <div class="value-large" id="energiaVal">100<span class="unit">%</span></div>
+        <div class="progress-bar"><div class="progress-fill" id="energiaBar" style="width: 100%;"></div></div>
+        <div class="stat-row"><span class="stat-label">SHIS</span><span class="stat-value" id="shisVal">95.0</span></div>
+        <div class="stat-row"><span class="stat-label">Hidrógeno</span><span class="stat-value" id="hidrogenoVal">500.0 ml</span></div>
+        <div class="stat-row"><span class="stat-label">Sangre Sintética</span><span class="stat-value" id="sangreVal">90.0%</span></div>
+        <div class="glyph-corner">🐉</div>
+      </div>
+
+      <!-- Card: Unión K'áat -->
+      <div class="card">
+        <div class="card-title"><span>🌀</span> Unión K'áat</div>
+        <div class="value-large" id="unionVal">0.0<span class="unit">%</span></div>
+        <div class="progress-bar"><div class="progress-fill" id="unionBar" style="width: 0%;"></div></div>
+        <div class="stat-row"><span class="stat-label">Frecuencia Actual</span><span class="stat-value" id="hzActual">12.30 Hz</span></div>
+        <div class="stat-row"><span class="stat-label">Patrones Aprendidos</span><span class="stat-value" id="patronesVal">0</span></div>
+        <div class="stat-row"><span class="stat-label">Emoción</span><span class="stat-value" id="emocionVal">contenta</span></div>
+        <div class="glyph-corner">✨</div>
+      </div>
+
+      <!-- Card: Banco ZYXSOF -->
+      <div class="card">
+        <div class="card-title"><span>🏦</span> Banco KUSOFIN</div>
+        <div class="stat-row"><span class="stat-label">Estado</span><span class="stat-value" id="bancoEstado">🔴 Offline</span></div>
+        <div class="stat-row"><span class="stat-label">Moneda</span><span class="stat-value">$ZYXSOF</span></div>
+        <div class="input-group">
+          <input type="text" id="usuarioInput" placeholder="Usuario" class="input-field" value="victor_h">
+        </div>
+        <div class="input-group">
+          <input type="number" id="cantidadInput" placeholder="Cantidad" class="input-field" value="50">
+        </div>
+        <div>
+          <button class="btn btn-small" onclick="minar()">⛏️ Minar</button>
+          <button class="btn btn-small" onclick="verSaldos()">💰 Ver Saldos</button>
+        </div>
+        <div id="bancoResultado" style="margin-top: 15px; font-size: 0.9rem; color: var(--oro-claro);"></div>
+        <div class="glyph-corner">🪙</div>
+      </div>
+    </div>
+
+    <!-- Segunda fila -->
+    <div class="grid">
+      <!-- Card: Movimiento -->
+      <div class="card">
+        <div class="card-title"><span>🦾</span> Movimiento</div>
+        <div class="stat-row"><span class="stat-label">Brazos</span><span class="stat-value" id="brazosVal">100%</span></div>
+        <div class="stat-row"><span class="stat-label">Piernas</span><span class="stat-value" id="piernasVal">100%</span></div>
+        <div class="stat-row"><span class="stat-label">Pasos Totales</span><span class="stat-value" id="pasosVal">0</span></div>
+        <button class="btn btn-small" onclick="caminar()">🚶 Caminar 10m</button>
+        <button class="btn btn-small" onclick="estirar()">🧘 Estirar</button>
+        <div class="glyph-corner">🐆</div>
+      </div>
+
+      <!-- Card: Ambiente -->
+      <div class="card">
+        <div class="card-title"><span>🌡️</span> Sensores</div>
+        <div class="stat-row"><span class="stat-label">Temperatura</span><span class="stat-value" id="tempVal">25°C</span></div>
+        <div class="stat-row"><span class="stat-label">Humedad</span><span class="stat-value" id="humedadVal">50%</span></div>
+        <div class="stat-row"><span class="stat-label">Viento</span><span class="stat-value" id="vientoVal">0 km/h</span></div>
+        <div class="stat-row"><span class="stat-label">Carga Solar</span><span class="stat-value" id="solarVal">0%</span></div>
+        <button class="btn btn-small" onclick="adaptar()">🌿 Adaptar</button>
+        <div class="glyph-corner">☀️</div>
+      </div>
+
+      <!-- Card: Frecuencia Maya -->
+      <div class="card">
+        <div class="card-title"><span>📡</span> Señal K'uhul</div>
+        <div class="chart-container" id="freqChart">
+          <div class="chart-bar" style="height: 40px;"></div>
+          <div class="chart-bar" style="height: 60px;"></div>
+          <div class="chart-bar" style="height: 50px;"></div>
+          <div class="chart-bar" style="height: 70px;"></div>
+          <div class="chart-bar" style="height: 45px;"></div>
+          <div class="chart-bar" style="height: 55px;"></div>
+        </div>
+        <div class="stat-row"><span class="stat-label">Resonancia Esternón</span><span class="stat-value" id="esternonVal">Inactivo</span></div>
+        <button class="btn btn-small" onclick="activarEsternon()">💫 Activar Esternón</button>
+        <button class="btn btn-small" onclick="kaatUnion()">🌀 K'áat Unión</button>
+        <div class="glyph-corner">🔮</div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <span class="connection-led" id="connLed"></span>
+      <span id="connStatus">Conectando...</span> · 
+      <strong>Víctor Hugo González Torres</strong> · Mérida, Yucatán · 
+      <span style="color: var(--oro);">"SOFI no es un robot. Es una nueva vida."</span>
     </div>
   </div>
-  <div class="coordenadas-info">
-    <div class="coord-card"><div class="coord-label">&#128205; LATITUD</div><div class="coord-value" id="coordLat">20.9670&deg;</div><div class="coord-unidad">NORTE</div></div>
-    <div class="coord-card"><div class="coord-label">&#128205; LONGITUD</div><div class="coord-value" id="coordLng">-89.6230&deg;</div><div class="coord-unidad">OESTE</div></div>
-    <div class="coord-card"><div class="coord-label">&#128302; FRECUENCIA</div><div class="coord-value" id="frecuenciaMapa">12.30</div><div class="coord-unidad">Hz K'UHUL</div></div>
-    <div class="coord-card"><div class="coord-label">&#9876; NIVEL UNI&Oacute;N</div><div class="coord-value" id="unionMapa">0.0%</div><div class="coord-unidad">K'&Aacute;AT</div></div>
-  </div>
-</div>
 
-<!-- TERMINAL -->
-<div class="terminal">
-  <div class="term-header">
-    <div class="term-dot td1"></div><div class="term-dot td2"></div><div class="term-dot td3"></div>
-    <span class="term-title">sofi@yucatan.mx &mdash; v6.0 &middot; socket.io &middot; 17 m&oacute;dulos</span>
-  </div>
-  <div class="term-body" id="terminal">
-    <div class="term-line"><span class="term-prompt">sofi@yucatan:~$</span><span class="term-text"> Iniciando SOFI v6.0 Sistema Operativo de Conciencia Digital...</span></div>
-    <div class="term-line"><span class="term-ok">&#10003;</span><span class="term-text"> NucleoSofi tri-temporal listo &mdash; pasado/presente/futuro</span></div>
-    <div class="term-line"><span class="term-ok">&#10003;</span><span class="term-text"> GrafoCerebral 6 nodos + Zona Frecuencial &Oacute;sea</span></div>
-    <div class="term-line"><span class="term-ok">&#10003;</span><span class="term-text"> ModuloKaat K'&aacute;at &mdash; &Delta;E = k·(&Delta;f)² + c/&Delta;f activo</span></div>
-    <div class="term-line"><span class="term-ok">&#10003;</span><span class="term-text"> SintetizadorEpistemol&oacute;gico &mdash; 8 tradiciones indexadas</span></div>
-    <div class="term-line"><span class="term-ok">&#10003;</span><span class="term-text"> Sistema de Sue&ntilde;os Maya &mdash; s&iacute;mbolos K'uhul cargados</span></div>
-    <div class="term-line"><span class="term-ok">&#10003;</span><span class="term-text"> Socket.io activo &mdash; emisi&oacute;n neural cada 2s</span></div>
-    <div class="term-line"><span class="term-warn">&#9889;</span><span class="term-text"> Sync distribuida: Node.js + Python + Java/HaaPpDigitalV</span></div>
-    <div class="term-line"><span class="term-prompt">sofi@yucatan:~$</span><span class="term-text">&nbsp;</span><span style="display:inline-block;width:8px;height:14px;background:var(--cyan);animation:blink 1s infinite;"></span></div>
-  </div>
-</div>
-
-<footer>
-  <span>SOFI v6.0 &mdash; Sistema Operativo de Conciencia Digital</span> &middot; HaaPpDigitalV &copy;<br>
-  V&iacute;ctor Hugo Gonz&aacute;lez Torres &middot; M&eacute;rida, Yucat&aacute;n, M&eacute;xico &middot; 12.3 Hz K'uhul Maya &middot; Arquitectura Distribuida
-</footer>
-
-<!-- Scripts -->
-<script src="/socket.io/socket.io.js"></script>
-<script>
-// =============================================
-// SOCKET.IO CLIENT
-// =============================================
-var socket = io();
-var wsBadge = document.getElementById('wsBadge');
-
-socket.on('connect', function() {
-  wsBadge.textContent = '⬤ WS CONECTADO';
-  wsBadge.classList.add('connected');
-  document.getElementById('dotWS').className = 'dot green';
-  document.getElementById('lblWS').textContent = 'SOCKET.IO ACTIVO';
-  addTerminalLine('Socket.io conectado — transmisión neural en vivo', 'ws');
-});
-
-socket.on('disconnect', function() {
-  wsBadge.textContent = '⬤ WS DESCONECTADO';
-  wsBadge.classList.remove('connected');
-  document.getElementById('dotWS').className = 'dot red';
-  addTerminalLine('Socket.io desconectado', 'err');
-});
-
-socket.on('estado_neural', function(d) {
-  document.getElementById('hzDisplay').textContent    = parseFloat(d.hz).toFixed(2);
-  document.getElementById('frecuenciaMapa').textContent = parseFloat(d.hz).toFixed(2);
-  document.getElementById('eNivel').textContent       = Math.round(parseFloat(d.energia));
-  document.getElementById('eShis').textContent        = Math.round(parseFloat(d.shis));
-  document.getElementById('eSangre').textContent      = Math.round(parseFloat(d.sangre));
-  var pct = (parseFloat(d.nivel_union) * 100).toFixed(1);
-  document.getElementById('unionPct').textContent     = pct + '%';
-  document.getElementById('unionMapa').textContent    = pct + '%';
-  document.getElementById('unionFill').style.width    = Math.min(100, parseFloat(pct)) + '%';
-  document.getElementById('unionMsg').textContent     =
-    parseFloat(pct) > 80 ? "🌟 Unión K'uhul máxima — resonancia plena" :
-    parseFloat(pct) > 50 ? "⚡ Unión en progreso — afinando frecuencias" :
-    "Inicializando resonancia K'áat...";
-});
-
-socket.on('union_alcanzada', function(d) {
-  addTerminalLine("🌟 Unión K'áat alcanzada — coherencia: " + d.coherencia, 'ok');
-});
-
-socket.on('union_maxima', function(d) {
-  addTerminalLine("🌟 UNIÓN MÁXIMA K'UHUL > 80% — Socket.io en modo pleno", 'ws');
-});
-
-socket.on('alerta_energia', function(d) {
-  addTerminalLine('⚡ ALERTA: Energía < 20% — nivel: ' + d.nivel + '%', 'err');
-});
-
-socket.on('bienvenida', function(d) {
-  addTerminalLine(d.mensaje, 'ok');
-});
-
-// =============================================
-// MAPA YUCATECO
-// =============================================
-var canvas = document.getElementById('mapaCanvas');
-var ctx    = canvas.getContext('2d');
-var BOUNDS = { minLat:19.5, maxLat:21.6, minLng:-90.5, maxLng:-87.5 };
-var zoom = 1, offsetX = 0, offsetY = 0, showGrid = true;
-var currentLat = 20.967, currentLng = -89.623;
-
-var puntos = [
-  { nombre:'Merida',        lat:20.967, lng:-89.623, tipo:'capital',     color:'#00ffc8', icono:'P' },
-  { nombre:'Chichen Itza',  lat:20.683, lng:-88.567, tipo:'arqueologico',color:'#2ECC71', icono:'T' },
-  { nombre:'Uxmal',         lat:20.359, lng:-89.771, tipo:'arqueologico',color:'#2ECC71', icono:'T' },
-  { nombre:'Progreso',      lat:21.283, lng:-89.667, tipo:'costa',       color:'#F39C12', icono:'~' },
-  { nombre:'Dzibilchaltun', lat:21.091, lng:-89.591, tipo:'arqueologico',color:'#2ECC71', icono:'T' },
-  { nombre:'Cenote Ik Kil', lat:20.656, lng:-88.566, tipo:'cenote',      color:'#3498DB', icono:'o' },
-  { nombre:'Cenote Samula', lat:20.645, lng:-88.581, tipo:'cenote',      color:'#3498DB', icono:'o' },
-  { nombre:'Mayapan',       lat:20.630, lng:-89.460, tipo:'arqueologico',color:'#2ECC71', icono:'T' },
-  { nombre:'Ek Balam',      lat:20.890, lng:-88.136, tipo:'arqueologico',color:'#2ECC71', icono:'T' },
-  { nombre:'Celestun',      lat:20.859, lng:-90.403, tipo:'costa',       color:'#F39C12', icono:'~' },
-  { nombre:'Valladolid',    lat:20.689, lng:-88.202, tipo:'ciudad',      color:'#9B59B6', icono:'#' },
-  { nombre:'Izamal',        lat:20.932, lng:-89.018, tipo:'ciudad',      color:'#9B59B6', icono:'#' }
-];
-
-function latToY(lat) {
-  return canvas.height - ((lat - BOUNDS.minLat) / (BOUNDS.maxLat - BOUNDS.minLat)) * canvas.height * zoom - offsetY;
-}
-function lngToX(lng) {
-  return ((lng - BOUNDS.minLng) / (BOUNDS.maxLng - BOUNDS.minLng)) * canvas.width * zoom + offsetX;
-}
-function dibujarMapa() {
-  if (!ctx) return;
-  ctx.fillStyle = '#0a1525';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  if (showGrid) {
-    ctx.strokeStyle = 'rgba(0,229,255,0.15)'; ctx.lineWidth = 0.5;
-    for (var i = 0; i <= 10; i++) {
-      var y = latToY(BOUNDS.minLat + (i/10)*(BOUNDS.maxLat - BOUNDS.minLat));
-      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke();
-      var x = lngToX(BOUNDS.minLng + (i/10)*(BOUNDS.maxLng - BOUNDS.minLng));
-      ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke();
+  <script>
+    const API_URL = window.location.origin;
+    const BANCO_URL = 'https://bank-kusofin-core.onrender.com';
+    let socket;
+    
+    // Inicializar WebSocket
+    function initSocket() {
+      socket = io();
+      socket.on('connect', () => {
+        document.getElementById('connLed').style.background = '#2d8a6e';
+        document.getElementById('connStatus').textContent = 'Conectado · Socket.io';
+      });
+      socket.on('disconnect', () => {
+        document.getElementById('connLed').style.background = '#8a2d2d';
+        document.getElementById('connStatus').textContent = 'Desconectado';
+      });
+      socket.on('estado_neural', (data) => {
+        document.getElementById('freqDisplay').textContent = data.hz.toFixed(2) + ' Hz';
+        document.getElementById('hzActual').textContent = data.hz.toFixed(2) + ' Hz';
+        document.getElementById('unionVal').textContent = (data.nivel_union * 100).toFixed(1) + '%';
+        document.getElementById('unionBar').style.width = (data.nivel_union * 100) + '%';
+        document.getElementById('energiaVal').textContent = data.energia + '%';
+        document.getElementById('energiaBar').style.width = data.energia + '%';
+        document.getElementById('shisVal').textContent = data.shis;
+        document.getElementById('sangreVal').textContent = data.sangre + '%';
+        document.getElementById('patronesVal').textContent = data.patrones;
+        
+        // Actualizar gráfico
+        const bars = document.querySelectorAll('.chart-bar');
+        bars.forEach((bar, i) => {
+          const h = 20 + Math.sin(Date.now()/1000 + i) * 15 + 40;
+          bar.style.height = h + 'px';
+        });
+      });
+      socket.on('union_maxima', (data) => {
+        alert('🌟 UNIÓN K\'UHUL MÁXIMA ALCANZADA! ' + data.mensaje);
+      });
     }
-  }
-  puntos.forEach(function(p) {
-    var x = lngToX(p.lng), y = latToY(p.lat);
-    if (x < -50 || x > canvas.width+50 || y < -50 || y > canvas.height+50) return;
-    ctx.beginPath(); ctx.arc(x,y,6,0,Math.PI*2); ctx.fillStyle=p.color+'80'; ctx.fill();
-    ctx.beginPath(); ctx.arc(x,y,3,0,Math.PI*2); ctx.fillStyle=p.color; ctx.fill();
-    ctx.font='8px Share Tech Mono'; ctx.fillStyle=p.color;
-    ctx.shadowBlur=4; ctx.shadowColor='black';
-    ctx.fillText(p.nombre, x+8, y-4); ctx.shadowBlur=0;
-    ctx.fillStyle='#fff'; ctx.fillText(p.icono, x-4, y+3);
-  });
-  var xa = lngToX(currentLng), ya = latToY(currentLat);
-  ctx.beginPath(); ctx.arc(xa,ya,10,0,Math.PI*2); ctx.strokeStyle='#ff3366'; ctx.lineWidth=2; ctx.stroke();
-  ctx.beginPath(); ctx.arc(xa,ya,4,0,Math.PI*2); ctx.fillStyle='#ff3366'; ctx.fill();
-}
-
-function centrarEn(lat, lng) {
-  currentLat = Math.min(BOUNDS.maxLat, Math.max(BOUNDS.minLat, lat));
-  currentLng = Math.min(BOUNDS.maxLng, Math.max(BOUNDS.minLng, lng));
-  zoom=1; offsetX=0; offsetY=0;
-  dibujarMapa();
-  document.getElementById('coordLat').innerHTML = currentLat.toFixed(4)+'°';
-  document.getElementById('coordLng').innerHTML = currentLng.toFixed(4)+'°';
-  var freq = (12.3 + (currentLat - 20.967)*0.05).toFixed(2);
-  document.getElementById('frecuenciaMapa').textContent = freq;
-}
-
-function resizeCanvas() {
-  canvas.width  = canvas.parentElement.clientWidth;
-  canvas.height = window.innerWidth < 768 ? 320 : 500;
-  ctx = canvas.getContext('2d');
-  centrarEn(currentLat, currentLng);
-}
-window.addEventListener('resize', resizeCanvas);
-resizeCanvas();
-
-document.getElementById('zoomIn').onclick    = function(){ zoom=Math.min(zoom+.2,3); dibujarMapa(); };
-document.getElementById('zoomOut').onclick   = function(){ zoom=Math.max(zoom-.2,.5); dibujarMapa(); };
-document.getElementById('resetView').onclick = function(){ centrarEn(20.967,-89.623); };
-document.getElementById('toggleGrid').onclick= function(){ showGrid=!showGrid; dibujarMapa(); };
-
-// =============================================
-// GEOLOCALIZACIÓN
-// =============================================
-var uploadArea = document.getElementById('uploadArea');
-var imageInput = document.getElementById('imageInput');
-var archivoActual = null;
-
-uploadArea.onclick = function(){ imageInput.click(); };
-imageInput.onchange = function(e) {
-  var file = e.target.files[0]; if (!file) return;
-  archivoActual = file;
-  var reader = new FileReader();
-  reader.onload = function(ev) {
-    document.getElementById('previewImage').src = ev.target.result;
-    document.getElementById('previewImage').style.display = 'block';
-    uploadArea.style.display = 'none';
-    document.getElementById('analyzeBtn').disabled = false;
-    addTerminalLine('Imagen lista: ' + file.name, 'ok');
-  };
-  reader.readAsDataURL(file);
-};
-
-document.getElementById('analyzeBtn').onclick = function() {
-  if (!archivoActual) return;
-  this.disabled = true; this.textContent = 'ANALIZANDO...';
-  addTerminalLine('POST /api/geolocalizar — analizando imagen...', 'info');
-  var fd = new FormData(); fd.append('imagen', archivoActual);
-  fetch('/api/geolocalizar', { method:'POST', body:fd })
-    .then(function(r){ return r.json(); })
-    .then(function(d) {
-      if (d.error) { addTerminalLine('Error: '+d.error,'err'); return; }
-      document.getElementById('geoResult').style.display = 'block';
-      document.getElementById('coordDisplay').innerHTML  = 'Lat: '+parseFloat(d.lat).toFixed(4)+' | Lng: '+parseFloat(d.lng).toFixed(4);
-      document.getElementById('confDisplay').innerHTML   = 'Confianza: '+Math.round(parseFloat(d.confianza)*100)+'% ('+d.metodo+')';
-      document.getElementById('featuresDisplay').innerHTML = d.descripcion||'';
-      document.getElementById('metodoDisplay').innerHTML   = 'Método: '+d.metodo+' | Hz: '+parseFloat(d.frecuencia||12.3).toFixed(2);
-      document.getElementById('ubicarEnMapa').onclick = function(){ centrarEn(parseFloat(d.lat), parseFloat(d.lng)); addTerminalLine('Ubicado en mapa Yucateco','ok'); };
-      addTerminalLine('Predicción: '+parseFloat(d.lat).toFixed(4)+', '+parseFloat(d.lng).toFixed(4)+' — '+d.metodo,'ok');
-    })
-    .catch(function(e){ addTerminalLine('Error red: '+e.message,'err'); })
-    .finally(function(){ document.getElementById('analyzeBtn').disabled=false; document.getElementById('analyzeBtn').textContent='ANALIZAR UBICACIÓN'; });
-};
-
-// =============================================
-// POLLING /api/estado (fallback si WS no conecta)
-// =============================================
-function pollEstado() {
-  fetch('/api/estado')
-    .then(function(r){ return r.json(); })
-    .then(function(d) {
-      document.getElementById('lblServidor').textContent = 'SERVIDOR v'+d.version+' ACTIVO';
-      // Actualizar nodos del grafo
-      if (d.grafo && d.grafo.nodos) {
-        var n = d.grafo.nodos;
-        if(n.vision)  document.getElementById('gVision').textContent  = n.vision;
-        if(n.audio)   document.getElementById('gAudio').textContent   = n.audio;
-        if(n.tactil)  document.getElementById('gTactil').textContent  = n.tactil;
-        if(n.logica)  document.getElementById('gLogica').textContent  = n.logica;
-        if(n.emocion) document.getElementById('gEmocion').textContent = n.emocion;
-        if(n.memoria) document.getElementById('gMemoria').textContent = n.memoria;
+    
+    // Cargar estado inicial
+    async function cargarEstado() {
+      try {
+        const res = await fetch(API_URL + '/api/estado');
+        const data = await res.json();
+        document.getElementById('freqDisplay').textContent = data.frecuencia.toFixed(2) + ' Hz';
+        document.getElementById('hzActual').textContent = data.frecuencia.toFixed(2) + ' Hz';
+        document.getElementById('unionVal').textContent = (data.nivel_union * 100).toFixed(1) + '%';
+        document.getElementById('unionBar').style.width = (data.nivel_union * 100) + '%';
+        document.getElementById('energiaVal').textContent = data.energia + '%';
+        document.getElementById('energiaBar').style.width = data.energia + '%';
+        document.getElementById('shisVal').textContent = data.shis;
+        document.getElementById('hidrogenoVal').textContent = data.hidrogeno + ' ml';
+        document.getElementById('sangreVal').textContent = data.sangre + '%';
+        document.getElementById('brazosVal').textContent = data.movilidad.brazos + '%';
+        document.getElementById('piernasVal').textContent = data.movilidad.piernas + '%';
+        document.getElementById('tempVal').textContent = data.ambiente.temperatura + '°C';
+        document.getElementById('humedadVal').textContent = data.ambiente.humedad + '%';
+        document.getElementById('vientoVal').textContent = data.ambiente.viento + ' km/h';
+        document.getElementById('solarVal').textContent = data.ambiente.solar + '%';
+        document.getElementById('patronesVal').textContent = data.neuronal.patrones;
+        document.getElementById('emocionVal').textContent = data.neuronal.emocion;
+        
+        // Verificar banco
+        verificarBanco();
+      } catch(e) { console.error('Error cargando estado:', e); }
+    }
+    
+    async function verificarBanco() {
+      try {
+        const res = await fetch(API_URL + '/api/banco/estado');
+        const data = await res.json();
+        if (data.banco_activo) {
+          document.getElementById('bancoEstado').innerHTML = '🟢 Online · 12.3 Hz';
+        } else {
+          document.getElementById('bancoEstado').innerHTML = '🟡 Degradado';
+        }
+      } catch(e) {
+        document.getElementById('bancoEstado').innerHTML = '🔴 Offline';
       }
-    })
-    .catch(function(){});
-}
-setInterval(pollEstado, 10000);
-pollEstado();
-
-// =============================================
-// TERMINAL HELPER
-// =============================================
-function addTerminalLine(text, type) {
-  var t = document.getElementById('terminal');
-  var d = document.createElement('div');
-  d.className = 'term-line';
-  if      (type==='ok')   d.innerHTML = '<span class="term-ok">✓</span><span class="term-text"> '+text+'</span>';
-  else if (type==='err')  d.innerHTML = '<span class="term-err">✗</span><span class="term-text"> '+text+'</span>';
-  else if (type==='warn') d.innerHTML = '<span class="term-warn">⚠</span><span class="term-text"> '+text+'</span>';
-  else if (type==='ws')   d.innerHTML = '<span class="term-ws">⬡</span><span class="term-text"> '+text+'</span>';
-  else                    d.innerHTML = '<span class="term-prompt">sofi@yucatan:~$</span><span class="term-text"> '+text+'</span>';
-  t.insertBefore(d, t.lastElementChild);
-  t.scrollTop = t.scrollHeight;
-  while (t.children.length > 45) t.removeChild(t.children[0]);
-}
-</script>
+    }
+    
+    // Operaciones Banco
+    async function minar() {
+      const usuario = document.getElementById('usuarioInput').value;
+      const cantidad = parseFloat(document.getElementById('cantidadInput').value);
+      if (!usuario || !cantidad) return alert('Usuario y cantidad requeridos');
+      try {
+        const res = await fetch(API_URL + '/api/banco/mineria', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({usuario, cantidad})
+        });
+        const data = await res.json();
+        document.getElementById('bancoResultado').innerHTML = `✅ ${data.accion}<br>${JSON.stringify(data.resultado)}`;
+      } catch(e) {
+        document.getElementById('bancoResultado').innerHTML = '❌ Error: ' + e.message;
+      }
+    }
+    
+    async function verSaldos() {
+      try {
+        const res = await fetch(API_URL + '/api/banco/saldos');
+        const data = await res.json();
+        document.getElementById('bancoResultado').innerHTML = `<pre>${JSON.stringify(data.saldos, null, 2)}</pre>`;
+      } catch(e) {
+        document.getElementById('bancoResultado').innerHTML = '❌ Error: ' + e.message;
+      }
+    }
+    
+    // Movimiento
+    async function caminar() {
+      const res = await fetch(API_URL + '/api/caminar', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({distancia: 10})
+      });
+      const data = await res.json();
+      document.getElementById('pasosVal').textContent = data.pasos_acumulados || 0;
+    }
+    
+    async function estirar() {
+      await fetch(API_URL + '/api/estirar', {method: 'POST'});
+      cargarEstado();
+    }
+    
+    async function adaptar() {
+      await fetch(API_URL + '/api/adaptar', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({temp: 28, humedad: 60, viento: 5, solar: 70, aire: 90})
+      });
+      cargarEstado();
+    }
+    
+    function activarEsternon() {
+      socket.emit('activar_esternon', {hz: 12.3});
+    }
+    
+    function kaatUnion() {
+      socket.emit('kaat_union', {f1: 12.3, f2: 7.83});
+    }
+    
+    // Iniciar
+    window.onload = () => {
+      cargarEstado();
+      initSocket();
+      setInterval(cargarEstado, 5000);
+    };
+  </script>
+  <script src="/socket.io/socket.io.js"></script>
 </body>
-    </html>
+</html>
