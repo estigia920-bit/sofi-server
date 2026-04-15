@@ -4,7 +4,7 @@
   "description": "SOFI — Sistema Operativo de Frecuencia Inteligente · HaaPpDigitalV © · K'uhul 12.3 Hz",
   "main": "server.js",
   "engines": {
-    "node": ">=20.0.0"
+  "node": "18.x"
   },
   "scripts": {
     "start": "node server.js",
