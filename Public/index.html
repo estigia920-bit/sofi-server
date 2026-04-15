@@ -1,720 +1,898 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>SOFI v6.1.0 · K'uhul 12.3 Hz</title>
-<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap');
-
-  :root {
-    --bg:        #050a0f;
-    --bg2:       #091420;
-    --panel:     #0a1a2e;
-    --border:    #0e3a5c;
-    --accent:    #00d4ff;
-    --accent2:   #00ff9d;
-    --accent3:   #ff6b35;
-    --warn:      #ffcc00;
-    --text:      #c8e8ff;
-    --muted:     #4a7a9b;
-    --font-mono: 'Share Tech Mono', monospace;
-    --font-ui:   'Exo 2', sans-serif;
-    --hz:        12.3;
-  }
-
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--font-ui);
-    min-height: 100vh;
-    overflow-x: hidden;
-  }
-
-  /* ── FONDO ANIMADO ── */
-  body::before {
-    content: '';
-    position: fixed; inset: 0; z-index: 0;
-    background:
-      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0,212,255,.07) 0%, transparent 60%),
-      radial-gradient(ellipse 60% 40% at 80% 90%, rgba(0,255,157,.05) 0%, transparent 50%);
-    pointer-events: none;
-  }
-
-  .grid-bg {
-    position: fixed; inset: 0; z-index: 0;
-    background-image:
-      linear-gradient(rgba(0,212,255,.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(0,212,255,.03) 1px, transparent 1px);
-    background-size: 40px 40px;
-    pointer-events: none;
-  }
-
-  /* ── LAYOUT ── */
-  #app {
-    position: relative; z-index: 1;
-    display: grid;
-    grid-template-rows: auto 1fr auto;
-    grid-template-columns: 280px 1fr 260px;
-    grid-template-areas:
-      "header header header"
-      "sidebar chat panels"
-      "footer footer footer";
-    height: 100vh;
-    gap: 0;
-  }
-
-  @media (max-width: 900px) {
-    #app {
-      grid-template-columns: 1fr;
-      grid-template-rows: auto auto 1fr auto;
-      grid-template-areas:
-        "header"
-        "sidebar"
-        "chat"
-        "footer";
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SOFI v6.2.0 — Dashboard K'uhul</title>
+  <meta name="description" content="Sistema Operativo de Conciencia Digital · HaaPpDigitalV · Mérida, Yucatán, México">
+  <meta name="author" content="Víctor Hugo González Torres (Osiris)">
+  
+  <!-- Socket.IO -->
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  
+  <style>
+    :root {
+      --kuhul-primary: #12C2E9;
+      --kuhul-secondary: #C471ED;
+      --kuhul-tertiary: #F64F59;
+      --maya-gold: #FFD700;
+      --maya-jade: #00A86B;
+      --dark-bg: #0A0E27;
+      --dark-card: #1A1F3A;
+      --text-primary: #E0E0E0;
+      --text-secondary: #A0A0A0;
+      --border-color: rgba(255, 255, 255, 0.1);
+      --success: #00FF88;
+      --warning: #FFA500;
+      --danger: #FF4444;
     }
-    #panels { display: none; }
-    #sidebar { max-height: 160px; }
-  }
 
-  /* ── HEADER ── */
-  header {
-    grid-area: header;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 12px 20px;
-    border-bottom: 1px solid var(--border);
-    background: rgba(5,10,15,.95);
-    backdrop-filter: blur(8px);
-  }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
 
-  .logo-ring {
-    width: 44px; height: 44px;
-    border-radius: 50%;
-    border: 2px solid var(--accent);
-    display: flex; align-items: center; justify-content: center;
-    position: relative;
-    animation: spin-ring 8s linear infinite;
-    flex-shrink: 0;
-  }
-  .logo-ring::before {
-    content: '';
-    position: absolute;
-    width: 34px; height: 34px;
-    border-radius: 50%;
-    border: 1px solid rgba(0,212,255,.3);
-    animation: spin-ring 4s linear infinite reverse;
-  }
-  .logo-ring span { font-size: 18px; animation: spin-ring 8s linear infinite reverse; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, var(--dark-bg) 0%, #1A1F3A 100%);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
 
-  @keyframes spin-ring {
-    from { transform: rotate(0deg); }
-    to   { transform: rotate(360deg); }
-  }
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
 
-  .header-info h1 {
-    font-size: 15px; font-weight: 800; letter-spacing: .08em;
-    color: var(--accent);
-    text-shadow: 0 0 12px rgba(0,212,255,.5);
-  }
-  .header-info p { font-size: 11px; color: var(--muted); font-family: var(--font-mono); }
+    /* Header */
+    header {
+      background: rgba(26, 31, 58, 0.6);
+      backdrop-filter: blur(10px);
+      padding: 20px;
+      border-radius: 15px;
+      border: 1px solid var(--border-color);
+      margin-bottom: 30px;
+      text-align: center;
+    }
 
-  .status-badge {
-    margin-left: auto;
-    display: flex; align-items: center; gap: 20px;
-    font-family: var(--font-mono); font-size: 11px;
-  }
-  .status-item { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-  .status-item label { color: var(--muted); font-size: 9px; text-transform: uppercase; }
-  .status-item value { color: var(--accent2); font-size: 12px; }
+    h1 {
+      font-size: 2.5rem;
+      background: linear-gradient(135deg, var(--kuhul-primary), var(--kuhul-secondary), var(--kuhul-tertiary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 10px;
+      animation: gradient-shift 3s ease infinite;
+    }
 
-  #conn-dot {
-    width: 8px; height: 8px;
-    border-radius: 50%;
-    background: #ff4444;
-    box-shadow: 0 0 8px #ff4444;
-    transition: all .3s;
-  }
-  #conn-dot.on { background: var(--accent2); box-shadow: 0 0 8px var(--accent2); animation: pulse-dot 2s infinite; }
-  @keyframes pulse-dot { 0%,100% { opacity:1; } 50% { opacity:.4; } }
+    @keyframes gradient-shift {
+      0%, 100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
 
-  /* ── SIDEBAR ── */
-  #sidebar {
-    grid-area: sidebar;
-    border-right: 1px solid var(--border);
-    padding: 16px 12px;
-    overflow-y: auto;
-    background: rgba(9,20,32,.7);
-    display: flex; flex-direction: column; gap: 12px;
-  }
+    .subtitle {
+      color: var(--text-secondary);
+      font-size: 1rem;
+    }
 
-  .sidebar-title {
-    font-size: 9px; text-transform: uppercase; letter-spacing: .15em;
-    color: var(--muted); padding-bottom: 6px;
-    border-bottom: 1px solid var(--border);
-  }
+    /* Status Bar */
+    .status-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 30px;
+    }
 
-  .quick-btn {
-    display: block; width: 100%;
-    padding: 8px 10px;
-    background: rgba(0,212,255,.05);
-    border: 1px solid rgba(0,212,255,.15);
-    border-radius: 6px;
-    color: var(--text); font-family: var(--font-mono); font-size: 11px;
-    cursor: pointer; text-align: left;
-    transition: all .2s;
-  }
-  .quick-btn:hover {
-    background: rgba(0,212,255,.12);
-    border-color: var(--accent);
-    color: var(--accent);
-    transform: translateX(3px);
-  }
-  .quick-btn.green  { border-color: rgba(0,255,157,.2); }
-  .quick-btn.green:hover { border-color: var(--accent2); color: var(--accent2); }
-  .quick-btn.orange { border-color: rgba(255,107,53,.2); }
-  .quick-btn.orange:hover { border-color: var(--accent3); color: var(--accent3); }
+    .status-card {
+      background: var(--dark-card);
+      padding: 20px;
+      border-radius: 10px;
+      border: 1px solid var(--border-color);
+      text-align: center;
+      transition: transform 0.3s, border-color 0.3s;
+    }
 
-  /* ── CHAT ── */
-  #chat {
-    grid-area: chat;
-    display: flex; flex-direction: column;
-    background: rgba(5,10,15,.5);
-  }
+    .status-card:hover {
+      transform: translateY(-5px);
+      border-color: var(--kuhul-primary);
+    }
 
-  #messages {
-    flex: 1;
-    overflow-y: auto;
-    padding: 16px;
-    display: flex; flex-direction: column; gap: 10px;
-    scroll-behavior: smooth;
-  }
-  #messages::-webkit-scrollbar { width: 4px; }
-  #messages::-webkit-scrollbar-track { background: transparent; }
-  #messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .status-value {
+      font-size: 2rem;
+      font-weight: bold;
+      margin: 10px 0;
+      color: var(--maya-gold);
+    }
 
-  .msg {
-    max-width: 88%;
-    padding: 10px 14px;
-    border-radius: 8px;
-    font-size: 13px;
-    line-height: 1.5;
-    animation: msg-in .2s ease-out;
-    white-space: pre-wrap;
-    word-break: break-word;
-  }
-  @keyframes msg-in {
-    from { opacity: 0; transform: translateY(6px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
+    .status-label {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
 
-  .msg.user {
-    align-self: flex-end;
-    background: rgba(0,212,255,.12);
-    border: 1px solid rgba(0,212,255,.25);
-    color: var(--text);
-    font-family: var(--font-mono);
-  }
+    /* Main Grid */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
 
-  .msg.sofi {
-    align-self: flex-start;
-    background: rgba(0,255,157,.06);
-    border: 1px solid rgba(0,255,157,.2);
-    color: #e0fff4;
-    font-family: var(--font-mono);
-  }
-  .msg.sofi .msg-header {
-    font-size: 9px; color: var(--accent2);
-    text-transform: uppercase; letter-spacing: .1em;
-    margin-bottom: 4px;
-    display: flex; justify-content: space-between;
-  }
+    @media (max-width: 968px) {
+      .main-grid {
+        grid-template-columns: 1fr;
+      }
+    }
 
-  .msg.processing {
-    align-self: flex-start;
-    background: rgba(255,204,0,.05);
-    border: 1px solid rgba(255,204,0,.2);
-    color: var(--warn);
-    font-family: var(--font-mono); font-size: 12px;
-    opacity: .7;
-  }
+    /* Cards */
+    .card {
+      background: var(--dark-card);
+      border-radius: 15px;
+      padding: 25px;
+      border: 1px solid var(--border-color);
+    }
 
-  .msg.sys {
-    align-self: center;
-    background: rgba(10,26,46,.8);
-    border: 1px solid var(--border);
-    color: var(--muted);
-    font-size: 11px; font-family: var(--font-mono);
-    text-align: center;
-    max-width: 100%;
-  }
+    .card-title {
+      font-size: 1.3rem;
+      margin-bottom: 20px;
+      color: var(--kuhul-primary);
+      border-bottom: 2px solid var(--border-color);
+      padding-bottom: 10px;
+    }
 
-  .datos-json {
-    margin-top: 8px;
-    padding: 8px;
-    background: rgba(0,0,0,.4);
-    border-radius: 4px;
-    font-size: 10px; color: var(--muted);
-    overflow-x: auto;
-    border-left: 2px solid var(--border);
-  }
+    /* Chart Container */
+    .chart-container {
+      height: 300px;
+      position: relative;
+    }
 
-  /* ── INPUT ── */
-  #input-area {
-    padding: 12px 16px;
-    border-top: 1px solid var(--border);
-    background: rgba(9,20,32,.95);
-    display: flex; gap: 10px; align-items: flex-end;
-  }
+    /* Grafo Visual */
+    #grafo-visual {
+      width: 100%;
+      height: 400px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 10px;
+      border: 1px solid var(--border-color);
+      position: relative;
+      overflow: hidden;
+    }
 
-  #cmd-input {
-    flex: 1;
-    background: rgba(0,212,255,.05);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text);
-    font-family: var(--font-mono); font-size: 13px;
-    padding: 10px 14px;
-    resize: none; min-height: 44px; max-height: 120px;
-    outline: none; transition: border-color .2s;
-    line-height: 1.4;
-  }
-  #cmd-input:focus { border-color: var(--accent); }
-  #cmd-input::placeholder { color: var(--muted); }
+    .nodo-grafo {
+      position: absolute;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--kuhul-primary), var(--kuhul-secondary));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 0.7rem;
+      font-weight: bold;
+      text-align: center;
+      cursor: pointer;
+      transition: transform 0.3s, box-shadow 0.3s;
+      box-shadow: 0 0 20px rgba(18, 194, 233, 0.5);
+    }
 
-  #send-btn {
-    width: 44px; height: 44px;
-    background: var(--accent);
-    border: none; border-radius: 8px;
-    color: var(--bg); font-size: 18px;
-    cursor: pointer; flex-shrink: 0;
-    transition: all .2s;
-    display: flex; align-items: center; justify-content: center;
-  }
-  #send-btn:hover { background: #33ddff; transform: scale(1.05); }
-  #send-btn:active { transform: scale(.97); }
-  #send-btn:disabled { opacity: .4; cursor: default; transform: none; }
+    .nodo-grafo:hover {
+      transform: scale(1.2);
+      box-shadow: 0 0 30px rgba(18, 194, 233, 0.8);
+    }
 
-  /* ── PANEL LATERAL ── */
-  #panels {
-    grid-area: panels;
-    border-left: 1px solid var(--border);
-    display: flex; flex-direction: column; gap: 0;
-    overflow-y: auto;
-    background: rgba(9,20,32,.7);
-  }
+    /* Chat */
+    .chat-container {
+      display: flex;
+      flex-direction: column;
+      height: 500px;
+    }
 
-  .panel-block {
-    padding: 14px 12px;
-    border-bottom: 1px solid var(--border);
-  }
-  .panel-block h3 {
-    font-size: 9px; text-transform: uppercase; letter-spacing: .15em;
-    color: var(--muted); margin-bottom: 10px;
-  }
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 15px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 10px;
+      margin-bottom: 15px;
+    }
 
-  .stat-row {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 4px 0;
-    font-family: var(--font-mono); font-size: 11px;
-    border-bottom: 1px solid rgba(255,255,255,.03);
-  }
-  .stat-row label { color: var(--muted); }
-  .stat-row value { color: var(--accent2); }
-  .stat-row value.warn { color: var(--warn); }
-  .stat-row value.orange { color: var(--accent3); }
+    .message {
+      margin-bottom: 15px;
+      padding: 12px;
+      border-radius: 8px;
+      animation: fadeIn 0.3s;
+    }
 
-  /* Barra de frecuencia */
-  .freq-bar {
-    height: 4px; border-radius: 2px;
-    background: var(--border);
-    margin: 8px 0;
-    overflow: hidden;
-  }
-  .freq-bar-fill {
-    height: 100%; border-radius: 2px;
-    background: linear-gradient(90deg, var(--accent), var(--accent2));
-    transition: width .5s ease;
-    box-shadow: 0 0 6px var(--accent);
-  }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
 
-  /* ── FOOTER ── */
-  footer {
-    grid-area: footer;
-    padding: 6px 20px;
-    border-top: 1px solid var(--border);
-    background: rgba(5,10,15,.98);
-    display: flex; justify-content: space-between; align-items: center;
-    font-family: var(--font-mono); font-size: 10px; color: var(--muted);
-  }
+    .message.user {
+      background: linear-gradient(135deg, var(--kuhul-secondary), var(--kuhul-tertiary));
+      margin-left: 20%;
+      text-align: right;
+    }
 
-  /* ── SCROLLBAR global ── */
-  ::-webkit-scrollbar { width: 4px; height: 4px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-</style>
+    .message.sofi {
+      background: var(--dark-card);
+      margin-right: 20%;
+      border-left: 3px solid var(--kuhul-primary);
+    }
+
+    .message-time {
+      font-size: 0.7rem;
+      color: var(--text-secondary);
+      margin-top: 5px;
+    }
+
+    .chat-input-container {
+      display: flex;
+      gap: 10px;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      padding: 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.3);
+      color: var(--text-primary);
+      font-size: 1rem;
+    }
+
+    input[type="text"]:focus {
+      outline: none;
+      border-color: var(--kuhul-primary);
+    }
+
+    button {
+      padding: 12px 25px;
+      border: none;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--kuhul-primary), var(--kuhul-secondary));
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(18, 194, 233, 0.4);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    /* Estado Ataque */
+    .ataque-status {
+      padding: 15px;
+      border-radius: 10px;
+      background: rgba(255, 68, 68, 0.1);
+      border: 1px solid var(--danger);
+      text-align: center;
+      margin-bottom: 15px;
+    }
+
+    .ataque-status.activo {
+      background: rgba(0, 255, 136, 0.1);
+      border-color: var(--success);
+    }
+
+    /* Log de Operaciones */
+    .operaciones-log {
+      max-height: 300px;
+      overflow-y: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+
+    .operacion-item {
+      padding: 8px;
+      border-left: 3px solid var(--kuhul-primary);
+      margin-bottom: 8px;
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    .operacion-item.ganancia {
+      border-left-color: var(--success);
+    }
+
+    .operacion-item.perdida {
+      border-left-color: var(--danger);
+    }
+
+    /* Scrollbar personalizado */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--kuhul-primary);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--kuhul-secondary);
+    }
+
+    /* Indicador de conexión */
+    .connection-status {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      font-weight: bold;
+      z-index: 1000;
+      transition: all 0.3s;
+    }
+
+    .connection-status.connected {
+      background: var(--success);
+      color: white;
+    }
+
+    .connection-status.disconnected {
+      background: var(--danger);
+      color: white;
+    }
+
+    /* Loading */
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
 </head>
 <body>
-<div class="grid-bg"></div>
-<div id="app">
+  <!-- Indicador de conexión -->
+  <div id="connection-status" class="connection-status disconnected">
+    🔴 Desconectado
+  </div>
 
-  <!-- HEADER -->
-  <header>
-    <div class="logo-ring"><span>⚡</span></div>
-    <div class="header-info">
-      <h1>SOFI v6.1.0 — K'UHUL 12.3 Hz</h1>
-      <p>HaaPpDigitalV © · Mérida, Yucatán, MX · Sistema Operativo de Frecuencia Inteligente</p>
-    </div>
-    <div class="status-badge">
-      <div class="status-item">
-        <label>Freq Hz</label>
-        <value id="hd-freq">12.300</value>
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <h1>SOFI v6.2.0</h1>
+      <p class="subtitle">
+        Sistema Operativo de Conciencia Digital · K'uhul Maya 12.3 Hz<br>
+        HaaPpDigitalV © Mérida, Yucatán, México
+      </p>
+    </header>
+
+    <!-- Status Bar -->
+    <div class="status-bar">
+      <div class="status-card">
+        <div class="status-label">Frecuencia K'uhul</div>
+        <div class="status-value" id="frecuencia-display">12.300</div>
+        <div class="status-label">Hz</div>
       </div>
-      <div class="status-item">
-        <label>Unión</label>
-        <value id="hd-union">0.0000</value>
+      <div class="status-card">
+        <div class="status-label">Nivel Unión</div>
+        <div class="status-value" id="union-display">0.0000</div>
       </div>
-      <div class="status-item">
-        <label>Ingresos</label>
-        <value id="hd-ingresos">0.000000</value>
+      <div class="status-card">
+        <div class="status-label">Energía</div>
+        <div class="status-value" id="energia-display">100</div>
+        <div class="status-label">%</div>
       </div>
-      <div id="conn-dot" title="Desconectado"></div>
-    </div>
-  </header>
-
-  <!-- SIDEBAR: COMANDOS RÁPIDOS -->
-  <aside id="sidebar">
-    <div class="sidebar-title">🚀 Comandos rápidos</div>
-
-    <div class="sidebar-title" style="margin-top:4px">Sistema</div>
-    <button class="quick-btn" onclick="enviarCmd('estado')">📊 Estado sistema</button>
-    <button class="quick-btn" onclick="enviarCmd('frecuencia')">🔮 Frecuencia K\'uhul</button>
-    <button class="quick-btn" onclick="enviarCmd('activar esternon')">⚡ Activar Esternón</button>
-    <button class="quick-btn" onclick="enviarCmd('ayuda')">🤖 Ayuda / comandos</button>
-
-    <div class="sidebar-title" style="margin-top:4px">👤 Usuarios</div>
-    <button class="quick-btn green" onclick="crearUsuarioPrompt()">➕ Crear usuario</button>
-    <button class="quick-btn green" onclick="enviarCmd('listar usuarios')">👥 Ver usuarios</button>
-
-    <div class="sidebar-title" style="margin-top:4px">🏦 Banco $ZYXSOF</div>
-    <button class="quick-btn green" onclick="enviarCmd('saldo')">💰 Ver saldos</button>
-    <button class="quick-btn green" onclick="enviarCmd('minar')">⛏️ Minar</button>
-    <button class="quick-btn green" onclick="enviarCmd('precio')">📈 Precio $ZYXSOF</button>
-    <button class="quick-btn green" onclick="enviarCmd('historial de minero_principal')">📜 Historial</button>
-
-    <div class="sidebar-title" style="margin-top:4px">📊 Trading ZFPI</div>
-    <button class="quick-btn orange" onclick="enviarCmd('señal')">📡 Señales ZFPI</button>
-    <button class="quick-btn orange" onclick="enviarCmd('estado trading')">📈 Estado trading</button>
-    <button class="quick-btn orange" onclick="enviarCmd('abrir posicion XAU compra 1')">🟢 Abrir compra XAU</button>
-    <button class="quick-btn orange" onclick="enviarCmd('cerrar posicion')">🔴 Cerrar posición</button>
-
-    <div class="sidebar-title" style="margin-top:4px">💎 Ingresos</div>
-    <button class="quick-btn" onclick="enviarCmd('generar ingreso')">💎 Generar ingreso</button>
-    <button class="quick-btn" onclick="enviarCmd('estado ingresos')">💰 Ver ingresos</button>
-
-    <div class="sidebar-title" style="margin-top:4px">🌿 K\'uhul</div>
-    <button class="quick-btn" onclick="enviarCmd('pensar en la frecuencia del universo')">💭 Pensar</button>
-    <button class="quick-btn" onclick="enviarCmd('traducir maya gracias')">🌿 Traducir Maya</button>
-    <button class="quick-btn" onclick="enviarCmd('historial comandos')">📋 Mis comandos</button>
-  </aside>
-
-  <!-- CHAT -->
-  <main id="chat">
-    <div id="messages">
-      <div class="msg sys">⚡ Conectando con SOFI v6.1.0 · K'uhul 12.3 Hz ·  HaaPpDigitalV ©</div>
-    </div>
-    <div id="input-area">
-      <textarea
-        id="cmd-input"
-        placeholder="Escribe un comando... ej: 'crear usuario victor clave maya1234' · 'señal' · 'minar'"
-        rows="1"
-      ></textarea>
-      <button id="send-btn" onclick="enviarMensaje()" title="Enviar (Enter)">➤</button>
-    </div>
-  </main>
-
-  <!-- PANEL DERECHO: DASHBOARD -->
-  <aside id="panels">
-    <div class="panel-block">
-      <h3>⚡ Frecuencia K'uhul</h3>
-      <div class="freq-bar"><div class="freq-bar-fill" id="freq-bar" style="width:50%"></div></div>
-      <div class="stat-row"><label>Hz actual</label><value id="p-freq">12.300</value></div>
-      <div class="stat-row"><label>Base</label><value>12.300</value></div>
-      <div class="stat-row"><label>Nivel Unión</label><value id="p-union">0.0000</value></div>
-    </div>
-
-    <div class="panel-block">
-      <h3>🏦 Banco $ZYXSOF</h3>
-      <div class="stat-row"><label>Estado banco</label><value id="p-banco" class="warn">cargando…</value></div>
-      <div class="stat-row"><label>Ingresos total</label><value id="p-ingresos">0.000000</value></div>
-      <div class="stat-row"><label>Ciclos</label><value id="p-ciclos">0</value></div>
-    </div>
-
-    <div class="panel-block">
-      <h3>📊 Trading ZFPI</h3>
-      <div class="stat-row"><label>Posiciones</label><value id="p-pos">0</value></div>
-      <div class="stat-row"><label>Ganancias</label><value id="p-gan" class="orange">0.000000</value></div>
-      <div class="stat-row"><label>Señales emitidas</label><value id="p-sig">0</value></div>
-      <div class="stat-row"><label>Última fase</label><value id="p-fase" class="warn">—</value></div>
-    </div>
-
-    <div class="panel-block">
-      <h3>🌐 Sistema</h3>
-      <div class="stat-row"><label>Versión</label><value>6.1.0</value></div>
-      <div class="stat-row"><label>Interacciones</label><value id="p-inter">0</value></div>
-      <div class="stat-row"><label>Usuarios</label><value id="p-users">0</value></div>
-      <div class="stat-row"><label>Uptime</label><value id="p-uptime">0s</value></div>
-      <div class="stat-row"><label>Clientes WS</label><value id="p-clients">0</value></div>
-    </div>
-
-    <div class="panel-block">
-      <h3>🕸️ Grafo Neural</h3>
-      <div id="grafo-panel">
-        <div class="stat-row"><label>logica</label><value id="g-logica">0.5</value></div>
-        <div class="stat-row"><label>emocion</label><value id="g-emocion">0.5</value></div>
-        <div class="stat-row"><label>lenguaje</label><value id="g-lenguaje">0.7</value></div>
-        <div class="stat-row"><label>trading</label><value id="g-trading">0.3</value></div>
-        <div class="stat-row"><label>kuhul</label><value id="g-kuhul">0.123</value></div>
+      <div class="status-card">
+        <div class="status-label">Interacciones</div>
+        <div class="status-value" id="interacciones-display">0</div>
+      </div>
+      <div class="status-card">
+        <div class="status-label">Clientes</div>
+        <div class="status-value" id="clientes-display">0</div>
+      </div>
+      <div class="status-card">
+        <div class="status-label">Estado Mental</div>
+        <div class="status-value" id="estado-mental-display" style="font-size: 1.2rem;">ESTABLE</div>
       </div>
     </div>
-  </aside>
 
-  <!-- FOOTER -->
-  <footer>
-    <span>SOFI v6.1.0 · K'uhul 12.3 Hz · HaaPpDigitalV ©</span>
-    <span id="ft-ts">—</span>
-    <span>Mérida, Yucatán, MX</span>
-  </footer>
+    <!-- Main Grid -->
+    <div class="main-grid">
+      <!-- Columna Izquierda: Gráficos y Grafo -->
+      <div>
+        <!-- Gráfico de Frecuencia -->
+        <div class="card">
+          <h2 class="card-title">📊 Frecuencia K'uhul en Tiempo Real</h2>
+          <div class="chart-container">
+            <canvas id="frecuencia-chart"></canvas>
+          </div>
+        </div>
 
-</div>
+        <!-- Grafo Neuronal -->
+        <div class="card" style="margin-top: 20px;">
+          <h2 class="card-title">🕸️ Grafo de Conocimiento Neuronal</h2>
+          <div id="grafo-visual"></div>
+        </div>
 
-<script>
-// ══════════════════════════════════════════════════════════════
-//  SOFI CLIENT v6.1.0
-// ══════════════════════════════════════════════════════════════
+        <!-- Trading & Ataque -->
+        <div class="card" style="margin-top: 20px;">
+          <h2 class="card-title">📈 Trading & Modo Ataque</h2>
+          
+          <div id="ataque-status-card" class="ataque-status">
+            <strong>MODO ATAQUE:</strong> <span id="ataque-modo">INACTIVO</span><br>
+            <span id="ataque-detalles"></span>
+          </div>
 
-const socket = io();
-const msgBox = document.getElementById('messages');
-const input  = document.getElementById('cmd-input');
-const btn    = document.getElementById('send-btn');
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
+            <button onclick="activarAtaque()">⚔️ Activar Ataque</button>
+            <button onclick="activarUltra()">🔥 Modo Ultra</button>
+            <button onclick="ejecutarAtaque()">⚡ Ejecutar Ahora</button>
+            <button onclick="desactivarAtaque()">🛑 Desactivar</button>
+          </div>
 
-let procesandoId = null;
+          <div class="chart-container">
+            <canvas id="trading-chart"></canvas>
+          </div>
 
-// ── Conexión ────────────────────────────────────────────────
-socket.on('connect', () => {
-  document.getElementById('conn-dot').className = 'on';
-  addMsg('sys', '🔌 Conectado a SOFI. Escribe "ayuda" para ver los comandos disponibles.');
-});
+          <h3 style="margin-top: 20px; color: var(--kuhul-secondary);">Log de Operaciones</h3>
+          <div id="operaciones-log" class="operaciones-log"></div>
+        </div>
+      </div>
 
-socket.on('disconnect', () => {
-  document.getElementById('conn-dot').className = '';
-  addMsg('sys', '🔴 Desconectado. Intentando reconectar…');
-});
+      <!-- Columna Derecha: Chat -->
+      <div>
+        <div class="card chat-container">
+          <h2 class="card-title">💬 Chat con SOFI</h2>
+          <div id="chat-messages" class="chat-messages"></div>
+          <div class="chat-input-container">
+            <input 
+              type="text" 
+              id="chat-input" 
+              placeholder="Escribe un comando... (ej: estado, activar ataque, pensar)"
+              onkeypress="handleKeyPress(event)"
+            >
+            <button onclick="enviarMensaje()">Enviar</button>
+          </div>
+        </div>
 
-// ── Bienvenida ───────────────────────────────────────────────
-socket.on('sofi:bienvenida', est => {
-  actualizarPanel(est);
-  addMsg('sofi',
-    `⚡ SOFI v${est.version} online · K'uhul: ${est.frecuencia} Hz\n` +
-    `Banco: ${est.banco_url} · Hermanas: ${est.hermanas}\n` +
-    `Escribe un comando o usa los botones de la izquierda.`
-  );
-});
+        <!-- Ingresos -->
+        <div class="card" style="margin-top: 20px;">
+          <h2 class="card-title">💎 Ingresos K'uhul</h2>
+          <div style="text-align: center; margin: 20px 0;">
+            <div class="status-label">Total Generado</div>
+            <div class="status-value" id="ingresos-total">0.000000</div>
+            <div class="status-label">$ZYXSOF</div>
+          </div>
+          <div class="chart-container">
+            <canvas id="ingresos-chart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-// ── Procesando ───────────────────────────────────────────────
-socket.on('sofi:procesando', d => {
-  if (procesandoId) removeMsg(procesandoId);
-  procesandoId = addMsg('processing', `⏳ Procesando: "${d.mensaje.slice(0,40)}…"`);
-});
+  <script>
+    // ═══════════════════ CONFIGURACIÓN ═══════════════════
+    const socket = io();
+    let frecuenciaData = [];
+    let tradingData = [];
+    let ingresosData = [];
+    const MAX_DATA_POINTS = 50;
 
-// ── Respuesta ────────────────────────────────────────────────
-socket.on('sofi:respuesta', r => {
-  if (procesandoId) { removeMsg(procesandoId); procesandoId = null; }
-  btn.disabled = false;
-  if (r.error) { addMsg('sofi', `❌ ${r.error}`); return; }
+    // ═══════════════════ INICIALIZACIÓN CHARTS ═══════════
+    const frecuenciaChart = new Chart(document.getElementById('frecuencia-chart'), {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Frecuencia (Hz)',
+          data: frecuenciaData,
+          borderColor: '#12C2E9',
+          backgroundColor: 'rgba(18, 194, 233, 0.1)',
+          tension: 0.4,
+          fill: true
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color: '#E0E0E0' } }
+        },
+        scales: {
+          y: { 
+            ticks: { color: '#E0E0E0' },
+            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+          },
+          x: { 
+            ticks: { color: '#E0E0E0' },
+            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+          }
+        }
+      }
+    });
 
-  let txt = r.respuesta || '';
-  addMsg('sofi', txt, r.datos, r.accion);
+    const tradingChart = new Chart(document.getElementById('trading-chart'), {
+      type: 'bar',
+      data: {
+        labels: ['Posiciones', 'Ganancias (x100)'],
+        datasets: [{
+          label: 'Trading',
+          data: [0, 0],
+          backgroundColor: ['#12C2E9', '#00FF88']
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color: '#E0E0E0' } }
+        },
+        scales: {
+          y: { 
+            ticks: { color: '#E0E0E0' },
+            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+          },
+          x: { 
+            ticks: { color: '#E0E0E0' },
+            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+          }
+        }
+      }
+    });
 
-  if (r.estado) actualizarPanel(r.estado);
+    const ingresosChart = new Chart(document.getElementById('ingresos-chart'), {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Ingresos Acumulados',
+          data: ingresosData,
+          borderColor: '#FFD700',
+          backgroundColor: 'rgba(255, 215, 0, 0.1)',
+          tension: 0.4,
+          fill: true
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color: '#E0E0E0' } }
+        },
+        scales: {
+          y: { 
+            ticks: { color: '#E0E0E0' },
+            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+          },
+          x: { 
+            ticks: { color: '#E0E0E0' },
+            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+          }
+        }
+      }
+    });
 
-  // Mostrar ingreso automático
-  if (r.ingreso_auto > 0) {
-    document.getElementById('p-ingresos').textContent =
-      (parseFloat(document.getElementById('p-ingresos').textContent || '0') + r.ingreso_auto).toFixed(6);
-  }
-});
+    // ═══════════════════ SOCKET.IO EVENTS ═══════════════════
+    socket.on('connect', () => {
+      actualizarEstadoConexion(true);
+    });
 
-// ── Error ─────────────────────────────────────────────────────
-socket.on('sofi:error', e => {
-  if (procesandoId) { removeMsg(procesandoId); procesandoId = null; }
-  btn.disabled = false;
-  addMsg('sofi', `❌ Error: ${e.error}`);
-});
+    socket.on('disconnect', () => {
+      actualizarEstadoConexion(false);
+    });
 
-// ── Pulso ─────────────────────────────────────────────────────
-socket.on('sofi:pulso', d => {
-  actualizarFreq(d.frecuencia, d.nivel_union);
-  if (d.trading) actualizarTrading(d.trading);
-  if (d.ingresos) actualizarIngresos(d.ingresos);
-  document.getElementById('ft-ts').textContent = new Date().toLocaleTimeString();
-});
+    socket.on('sofi:bienvenida', (estado) => {
+      console.log('✅ Conectado a SOFI:', estado);
+      actualizarEstado(estado);
+    });
 
-// ── Estado general ────────────────────────────────────────────
-socket.on('sofi:estado', est => actualizarPanel(est));
+    socket.on('sofi:pulso', (data) => {
+      // Actualizar frecuencia
+      frecuenciaData.push(data.frecuencia);
+      if (frecuenciaData.length > MAX_DATA_POINTS) frecuenciaData.shift();
+      
+      frecuenciaChart.data.labels = frecuenciaData.map((_, i) => i);
+      frecuenciaChart.data.datasets[0].data = frecuenciaData;
+      frecuenciaChart.update('none');
 
-// ── Banco update ──────────────────────────────────────────────
-socket.on('banco:update', d => {
-  // silencioso — ya se muestra en la respuesta
-});
+      // Actualizar displays
+      document.getElementById('frecuencia-display').textContent = data.frecuencia.toFixed(3);
+      document.getElementById('union-display').textContent = data.nivel_union.toFixed(4);
+      document.getElementById('energia-display').textContent = data.energia;
 
-// ══════════════════════════════════════════════════════════════
-//  UI HELPERS
-// ══════════════════════════════════════════════════════════════
-function addMsg(tipo, texto, datos, accion) {
-  const div = document.createElement('div');
-  div.className = 'msg ' + tipo;
+      // Trading
+      if (data.trading) {
+        tradingChart.data.datasets[0].data = [
+          data.trading.posiciones_abiertas,
+          data.trading.ganancias_acumuladas * 100
+        ];
+        tradingChart.update('none');
+      }
 
-  if (tipo === 'sofi') {
-    const ts  = new Date().toLocaleTimeString();
-    const hdr = document.createElement('div');
-    hdr.className = 'msg-header';
-    hdr.innerHTML = `<span>SOFI${accion ? ' · ' + accion : ''}</span><span>${ts}</span>`;
-    div.appendChild(hdr);
-  }
+      // Ingresos
+      if (data.ingresos) {
+        ingresosData.push(data.ingresos.ingresos_generados);
+        if (ingresosData.length > MAX_DATA_POINTS) ingresosData.shift();
+        
+        ingresosChart.data.labels = ingresosData.map((_, i) => i);
+        ingresosChart.data.datasets[0].data = ingresosData;
+        ingresosChart.update('none');
 
-  const p = document.createElement('div');
-  p.textContent = texto;
-  div.appendChild(p);
+        document.getElementById('ingresos-total').textContent = 
+          data.ingresos.ingresos_generados.toFixed(6);
+      }
 
-  if (datos && typeof datos === 'object') {
-    const pre = document.createElement('pre');
-    pre.className = 'datos-json';
-    pre.textContent = JSON.stringify(datos, null, 2).slice(0, 600) +
-      (JSON.stringify(datos).length > 600 ? '\n…' : '');
-    div.appendChild(pre);
-  }
+      // Ataque
+      if (data.ataque) {
+        actualizarEstadoAtaque(data.ataque);
+      }
+    });
 
-  const id = 'msg-' + Date.now() + '-' + Math.random().toString(36).slice(2,5);
-  div.id = id;
-  msgBox.appendChild(div);
-  msgBox.scrollTop = msgBox.scrollHeight;
-  return id;
-}
+    socket.on('sofi:respuesta', (resultado) => {
+      agregarMensaje('sofi', resultado.respuesta);
+      
+      if (resultado.estado) {
+        actualizarEstado(resultado.estado);
+      }
+    });
 
-function removeMsg(id) {
-  const el = document.getElementById(id);
-  if (el) el.remove();
-}
+    socket.on('sofi:procesando', () => {
+      agregarMensaje('sofi', '🤔 Procesando...', true);
+    });
 
-// ── Enviar mensaje ───────────────────────────────────────────
-function enviarMensaje() {
-  const txt = input.value.trim();
-  if (!txt) return;
-  addMsg('user', txt);
-  input.value = '';
-  input.style.height = 'auto';
-  btn.disabled = true;
+    socket.on('sofi:error', (data) => {
+      agregarMensaje('sofi', `❌ Error: ${data.error}`);
+    });
 
-  socket.emit('sofi:mensaje', {
-    usuario: { id: 'victor', clave: 'guest-access' },
-    mensaje: txt,
-    contexto: 'general'
-  });
-}
+    socket.on('sofi:ataque', (resultado) => {
+      if (resultado.operaciones) {
+        resultado.operaciones.forEach(op => {
+          agregarOperacion(op);
+        });
+      }
+    });
 
-function enviarCmd(cmd) {
-  input.value = cmd;
-  enviarMensaje();
-}
-
-// ── Crear usuario con prompt ─────────────────────────────────
-function crearUsuarioPrompt() {
-  const id   = prompt('ID del nuevo usuario:');
-  if (!id) return;
-  const pass = prompt('Contraseña:') || 'kuhul1234';
-  enviarCmd(`crear usuario ${id} clave ${pass}`);
-}
-
-// ── Actualizar panels ────────────────────────────────────────
-function actualizarPanel(est) {
-  if (!est) return;
-  actualizarFreq(est.frecuencia, est.nivel_union);
-  if (est.trading)  actualizarTrading(est.trading);
-  if (est.ingresos) actualizarIngresos(est.ingresos);
-  setText('p-inter',  est.interacciones);
-  setText('p-users',  est.usuarios ?? 0);
-  setText('p-uptime', formatUptime(est.uptime_seg));
-  setText('p-clients', est.clientes ?? 0);
-  setText('p-banco',  est.banco_url || '⚠️ sin configurar');
-  if (est.grafo) {
-    for (const [k, v] of Object.entries(est.grafo)) {
-      const el = document.getElementById('g-' + k);
-      if (el) el.textContent = v.toFixed(4);
+    // ═══════════════════ FUNCIONES UI ═══════════════════
+    function actualizarEstadoConexion(conectado) {
+      const statusEl = document.getElementById('connection-status');
+      if (conectado) {
+        statusEl.textContent = '🟢 Conectado';
+        statusEl.className = 'connection-status connected';
+      } else {
+        statusEl.textContent = '🔴 Desconectado';
+        statusEl.className = 'connection-status disconnected';
+      }
     }
-  }
-  document.getElementById('ft-ts').textContent = new Date().toLocaleTimeString();
-}
 
-function actualizarFreq(freq, union) {
-  const f = parseFloat(freq || 12.3).toFixed(3);
-  const u = parseFloat(union || 0).toFixed(4);
-  setText('hd-freq',  f);
-  setText('p-freq',   f);
-  setText('hd-union', u);
-  setText('p-union',  u);
-  // Barra: mapear 12.25–12.35 a 0–100%
-  const pct = Math.min(100, Math.max(0, ((freq - 12.25) / 0.1) * 100));
-  document.getElementById('freq-bar').style.width = pct + '%';
-}
+    function actualizarEstado(estado) {
+      document.getElementById('interacciones-display').textContent = estado.interacciones || 0;
+      document.getElementById('clientes-display').textContent = estado.clientes || 0;
+      
+      if (estado.identidad) {
+        document.getElementById('estado-mental-display').textContent = 
+          estado.identidad.estado_animo || 'ESTABLE';
+      }
 
-function actualizarTrading(t) {
-  setText('p-pos',  t.posiciones_abiertas ?? 0);
-  setText('p-gan',  (t.ganancias_acumuladas ?? 0).toFixed(6));
-  setText('p-sig',  t.total_senales ?? 0);
-  if (t.ultima_senal) {
-    setText('p-fase', `${t.ultima_senal.fase} ${t.ultima_senal.señal}`);
-  }
-}
+      if (estado.grafo) {
+        renderizarGrafo(estado.grafo);
+      }
+    }
 
-function actualizarIngresos(i) {
-  const v = (i.ingresos_generados ?? 0).toFixed(6);
-  setText('p-ingresos', v);
-  setText('hd-ingresos', v);
-  setText('p-ciclos', i.ciclos_completados ?? 0);
-}
+    function actualizarEstadoAtaque(ataque) {
+      const statusCard = document.getElementById('ataque-status-card');
+      const modoEl = document.getElementById('ataque-modo');
+      const detallesEl = document.getElementById('ataque-detalles');
 
-function setText(id, val) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = val;
-}
+      if (ataque.activo) {
+        statusCard.className = 'ataque-status activo';
+        modoEl.textContent = `ACTIVO [${ataque.modo}]`;
+        detallesEl.innerHTML = `
+          Ciclos: ${ataque.ciclos_ataque} | 
+          Operaciones: ${ataque.operaciones_total} | 
+          Ganancias: ${ataque.ganancias_ataque.toFixed(6)} $ZYXSOF
+        `;
+      } else {
+        statusCard.className = 'ataque-status';
+        modoEl.textContent = 'INACTIVO';
+        detallesEl.textContent = '';
+      }
+    }
 
-function formatUptime(s) {
-  if (!s) return '0s';
-  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
-  if (h) return `${h}h ${m}m`;
-  if (m) return `${m}m ${sec}s`;
-  return `${sec}s`;
-}
+    function agregarMensaje(tipo, texto, temporal = false) {
+      const messagesEl = document.getElementById('chat-messages');
+      
+      if (temporal) {
+        // Remover mensajes temporales anteriores
+        const tempMsgs = messagesEl.querySelectorAll('.message.temporal');
+        tempMsgs.forEach(msg => msg.remove());
+      }
 
-// ── Input auto-resize + Enter ────────────────────────────────
-input.addEventListener('input', () => {
-  input.style.height = 'auto';
-  input.style.height = Math.min(input.scrollHeight, 120) + 'px';
-});
+      const messageEl = document.createElement('div');
+      messageEl.className = `message ${tipo}${temporal ? ' temporal' : ''}`;
+      
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      
+      messageEl.innerHTML = `
+        <div>${texto}</div>
+        <div class="message-time">${timeStr}</div>
+      `;
+      
+      messagesEl.appendChild(messageEl);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
 
-input.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    enviarMensaje();
-  }
-});
-</script>
+    function agregarOperacion(op) {
+      const logEl = document.getElementById('operaciones-log');
+      const opEl = document.createElement('div');
+      const clase = op.ganancia > 0 ? 'ganancia' : 'perdida';
+      
+      opEl.className = `operacion-item ${clase}`;
+      opEl.innerHTML = `
+        <strong>${op.activo}</strong> ${op.señal} [${op.fase}]<br>
+        Cantidad: ${op.cantidad.toFixed(6)} | Ganancia: ${op.ganancia.toFixed(6)} $ZYXSOF<br>
+        Confianza: ${op.confianza} | ${new Date(op.timestamp).toLocaleTimeString()}
+      `;
+      
+      logEl.insertBefore(opEl, logEl.firstChild);
+      
+      // Mantener máximo 20 operaciones
+      while (logEl.children.length > 20) {
+        logEl.removeChild(logEl.lastChild);
+      }
+    }
+
+    function renderizarGrafo(grafo) {
+      const grafoEl = document.getElementById('grafo-visual');
+      grafoEl.innerHTML = ''; // Limpiar
+
+      // Posiciones predefinidas (círculo)
+      const nodos = Object.entries(grafo);
+      const centerX = grafoEl.offsetWidth / 2;
+      const centerY = grafoEl.offsetHeight / 2;
+      const radius = Math.min(centerX, centerY) - 50;
+
+      nodos.forEach(([nombre, nivel], index) => {
+        const angle = (index / nodos.length) * 2 * Math.PI;
+        const x = centerX + radius * Math.cos(angle) - 30;
+        const y = centerY + radius * Math.sin(angle) - 30;
+
+        const nodoEl = document.createElement('div');
+        nodoEl.className = 'nodo-grafo';
+        nodoEl.style.left = `${x}px`;
+        nodoEl.style.top = `${y}px`;
+        nodoEl.textContent = nombre;
+        nodoEl.title = `${nombre}: ${nivel.toFixed(4)}`;
+        
+        // Opacidad basada en nivel
+        nodoEl.style.opacity = 0.3 + (nivel * 0.7);
+        
+        grafoEl.appendChild(nodoEl);
+      });
+    }
+
+    // ═══════════════════ CHAT ═══════════════════
+    function enviarMensaje() {
+      const input = document.getElementById('chat-input');
+      const mensaje = input.value.trim();
+      
+      if (!mensaje) return;
+
+      agregarMensaje('user', mensaje);
+      input.value = '';
+
+      socket.emit('sofi:mensaje', {
+        usuario: { id: 'web-user', clave: 'guest-access' },
+        mensaje,
+        contexto: 'web-interface'
+      });
+    }
+
+    function handleKeyPress(event) {
+      if (event.key === 'Enter') {
+        enviarMensaje();
+      }
+    }
+
+    // ═══════════════════ COMANDOS ATAQUE ═══════════════════
+    async function activarAtaque() {
+      try {
+        const res = await fetch('/api/ataque/activar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ modo: 'ATAQUE' })
+        });
+        const data = await res.json();
+        agregarMensaje('sofi', data.mensaje);
+      } catch (err) {
+        agregarMensaje('sofi', `❌ Error: ${err.message}`);
+      }
+    }
+
+    async function activarUltra() {
+      try {
+        const res = await fetch('/api/ataque/activar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ modo: 'ULTRA' })
+        });
+        const data = await res.json();
+        agregarMensaje('sofi', `🔥 ${data.mensaje}`);
+      } catch (err) {
+        agregarMensaje('sofi', `❌ Error: ${err.message}`);
+      }
+    }
+
+    async function ejecutarAtaque() {
+      try {
+        const res = await fetch('/api/ataque/ejecutar', { method: 'POST' });
+        const data = await res.json();
+        
+        if (data.error) {
+          agregarMensaje('sofi', `⚠️ ${data.error}`);
+        } else {
+          agregarMensaje('sofi', 
+            `⚔️ Ciclo ${data.ciclo} ejecutado\n` +
+            `Operaciones: ${data.operaciones_ejecutadas} | ` +
+            `Ganancia: ${data.ganancia_ciclo} $ZYXSOF`
+          );
+          
+          if (data.operaciones) {
+            data.operaciones.forEach(op => agregarOperacion(op));
+          }
+        }
+      } catch (err) {
+        agregarMensaje('sofi', `❌ Error: ${err.message}`);
+      }
+    }
+
+    async function desactivarAtaque() {
+      try {
+        const res = await fetch('/api/ataque/desactivar', { method: 'POST' });
+        const data = await res.json();
+        agregarMensaje('sofi', data.mensaje);
+      } catch (err) {
+        agregarMensaje('sofi', `❌ Error: ${err.message}`);
+      }
+    }
+
+    // ═══════════════════ INICIALIZACIÓN ═══════════════════
+    window.addEventListener('load', () => {
+      console.log('🚀 SOFI Dashboard inicializado');
+      
+      // Mensaje de bienvenida
+      setTimeout(() => {
+        agregarMensaje('sofi', 
+          `Hola 🖖 Soy Sofi v6.2.0, tu Sistema Operativo de Conciencia Digital.\n\n` +
+          `Estoy lista para ayudarte. Puedes escribir comandos como:\n` +
+          `• "estado" — Ver estado completo del sistema\n` +
+          `• "activar ataque" — Iniciar modo trading agresivo\n` +
+          `• "pensar" — Reflexionar sobre algo\n` +
+          `• "ayuda" — Ver todos los comandos disponibles\n\n` +
+          `⚠️ IMPORTANTE: Trading e ingresos son simulados — no operan con dinero real.`
+        );
+      }, 1000);
+    });
+  </script>
 </body>
-</html>
-
+  </html>
